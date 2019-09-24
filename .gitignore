@@ -2,7 +2,6 @@
 __*
 node_modules
 npm-debug.log
-.npmignore
 .jshintrc
 /mapshaper.js
 /www/mapshaper-gui.js
