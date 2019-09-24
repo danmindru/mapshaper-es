@@ -22,10 +22,10 @@ require("catty")({follow: follow})
 
 
 require('browserify')('./mapshaper.js', { standalone: 'mapshaperEs' })
-require('browserify')()	.bundle(function(err, buf) {
-  .require(requiredModules)	  if (err) throw err;
-  .bundle(function(err, buf) {	  write('./www/mapshaper.js', buf);
-    if (err) throw err;	});
+.bundle(function(err, buf) {
+  if (err) throw err;
+  write('./www/mapshaper.js', buf);
+});
 
 
 function onCat(err, js) {
