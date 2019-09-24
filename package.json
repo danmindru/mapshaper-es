@@ -1,5 +1,5 @@
 {
-	"name": "mapshaper",
+	"name": "mapshaper-es",
 	"version": "0.4.130",
 	"description": "A tool for editing vector datasets for mapping and GIS.",
 	"keywords": [
@@ -25,8 +25,7 @@
 		"test": "node node_modules/mocha/bin/mocha --check-leaks -R dot",
 		"build": "./build",
 		"pretest": "npm run build",
-		"prepublishOnly": "npm test",
-		"postpublish": "./release"
+		"prepublishOnly": "npm test"
 	},
 	"main": "./mapshaper.js",
 	"dependencies": {
