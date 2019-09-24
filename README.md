@@ -1,3 +1,6 @@
+[![npm](https://img.shields.io/npm/v/mapshaper-es.svg)](https://www.npmjs.com/package/mapshaper-es)
+[![license](https://img.shields.io/github/license/danmindru/mapshaper-es.svg)](/LICENSE)
+
 > **mapshaper-es** is a fork of `mapshaper` that is easier to use in a browser.
 > Or, that's the plan anyway. Due to the size of the refactoring, this transition will be done in a few steps.
 > - [x] bundle as standalone umd (iife). This should work ok with i.e. webpack.
