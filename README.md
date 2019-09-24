@@ -1,4 +1,9 @@
-# mapshaper
+> **mapshaper-es** is a fork of `mapshaper` that is easier to use in a browser.
+> Or, that's the plan anyway. Due to the size of the refactoring, this transition will be done in a few steps.
+> - [x] bundle as standalone umd (iife). This should work ok with i.e. webpack.
+> - [ ] refactor modules to es imports
+> - [ ] refactor build and figure out a way to package this
+> - [ ] integrate with `mapshaper-es-cli` for drag-and-drop use in i.e. React
 
 ## Introduction
 
@@ -26,7 +31,7 @@ For a detailed reference, see the [Command Reference](https://github.com/mbloch/
 
 ## Interactive web interface
 
-Visit the public website at [www.mapshaper.org](http://www.mapshaper.org) or use the web UI locally via the `mapshaper-gui` script. 
+Visit the public website at [www.mapshaper.org](http://www.mapshaper.org) or use the web UI locally via the `mapshaper-gui` script.
 
 All processing is done in the browser, so your data stays private, even when using the public website.
 

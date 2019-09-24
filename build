@@ -21,28 +21,17 @@ require("catty")({follow: follow})
   .cat("src/mapshaper.js", onCat);
 
 
-require('browserify')()
-  .require(requiredModules)
-  .bundle(function(err, buf) {
-    if (err) throw err;
-    write('./www/modules.js', buf);
-  });
+require('browserify')('./mapshaper.js', { standalone: 'mapshaperEs' })
+require('browserify')()	.bundle(function(err, buf) {
+  .require(requiredModules)	  if (err) throw err;
+  .bundle(function(err, buf) {	  write('./www/mapshaper.js', buf);
+    if (err) throw err;	});
 
 
 function onCat(err, js) {
   if (!err) {
     write('./mapshaper.js', js);
     write('./www/mapshaper.js', js);
-
-    /*
-    // switch to this if any modules are bundled w/ mapshaper.js
-    require('browserify')('./mapshaper.js')
-      .external(requiredModules)
-      .bundle(function(err, buf) {
-        if (err) throw err;
-        write('./www/mapshaper.js', buf);
-      });
-    */
   }
 }
 
