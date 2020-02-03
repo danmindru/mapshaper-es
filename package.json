@@ -1,6 +1,6 @@
 {
 	"name": "mapshaper-es",
-	"version": "0.4.130",
+	"version": "0.4.131",
 	"description": "A tool for editing vector datasets for mapping and GIS.",
 	"keywords": [
 		"shapefile",
@@ -16,7 +16,7 @@
 	"license": "MPL-2.0",
 	"repository": {
 		"type": "git",
-		"url": "https://github.com/mbloch/mapshaper"
+		"url": "https://github.com/danmindru/mapshaper-es"
 	},
 	"engines": {
 		"node": ">=0.12.0"

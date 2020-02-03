@@ -8,6 +8,138 @@
 > - [ ] refactor build and figure out a way to package this
 > - [ ] integrate with `mapshaper-es-cli` for drag-and-drop use in i.e. React
 
+
+## 👩‍💻 Usage
+
+🐚 Install package
+```shell
+npm i mapshaper-es
+```
+
+👩‍💻 In code
+```javascript
+import * as mapshaper from "mapshaper-es/www/mapshaper.js";
+import { oneLine } from "common-tags";
+
+const FILENAMES = {
+  TARGET: "target.geojson",
+  SOURCE: "source.geojson",
+  OUTPUT: "output.geojson"
+};
+
+const geojson = { type: "FeatureCollection", features: [] } // etc
+
+const exportCommand = oneLine`
+  -i ${FILENAMES.TARGET}
+  -o ${FILENAMES.OUTPUT}
+  format=shapefile
+  encoding=utf-8
+`;
+
+mapshaper.applyCommands(
+  exportCommand,
+  {
+    [FILENAMES.TARGET]: geojson
+  },
+  (err, output) => {
+    if (err) {
+      mapshaper.internal.logArgs([`${err.toString()} \n`]);
+    }
+
+    // TODO: Do something with output.
+    // Output is an Object that can be one ore more keys, containing encoded data.
+    // Decode using new TextDecoder("utf-8").decode(output[key])
+    return output;
+  }
+```
+
+## Available commands
+
+### I/O commands
+
+```
+  -i               input one or more files
+  -o               output edited content
+```
+
+### Editing commands
+
+```
+  -affine          transform coordinates by shifting, scaling and rotating
+  -clean           fixes geometry issues, such as polygon overlaps and gaps
+  -clip            use a polygon layer to clip another layer
+  -colorizer       define a function to convert data values to color classes
+  -dissolve        merge features within a layer
+  -dissolve2       merge adjacent polygons (repairs overlaps and gaps)
+  -divide          divide lines by polygons, copy data from polygons to lines
+  -drop            delete layer(s) or elements within the target layer(s)
+  -each            create/update/delete data fields using a JS expression
+  -erase           use a polygon layer to erase another layer
+  -explode         divide multi-part features into single-part features
+  -filter          delete features using a JS expression
+  -filter-fields   retain a subset of data fields
+  -filter-islands  remove small detached polygon rings (islands)
+  -filter-slivers  remove small polygon rings
+  -graticule       create a graticule layer
+  -grid            create a grid of square or hexagonal polygons
+  -innerlines      convert polygons to polylines along shared edges
+  -join            join data records from a file or layer to a layer
+  -lines           convert a polygon or point layer to a polyline layer
+  -merge-layers    merge multiple layers into as few layers as possible
+  -mosaic          convert a polygon layer with overlaps into a flat mosaic
+  -point-grid      create a rectangular grid of points
+  -points          create a point layer from a different layer type
+  -polygons        convert polylines to polygons
+  -proj            project your data (using Proj.4)
+  -rectangle       create a rectangle from a bbox or target layer extent
+  -rectangles      create a rectangle around each feature in a layer
+  -rename-fields   rename data fields
+  -rename-layers   assign new names to layers
+  -simplify        simplify the geometry of polygon and polyline features
+  -sort            sort features using a JS expression
+  -split           split a layer into single-feature or multi-feature layers
+  -split-on-grid   split features into separate layers using a grid
+  -style           set SVG style properties using JS or literal values
+  -target          set active layer (or layers)
+  -union           create a flat mosaic from two or more polygon layers
+  -uniq            delete features with the same id as a previous feature
+```
+
+### Experimental commands (may give unexpected results)
+
+```
+  -cluster         group polygons into compact clusters
+  -data-fill       fill in missing values in a polygon layer
+  -include         import JS data and functions for use in JS expressions
+  -fuzzy-join      join points to polygons, with data fill and fuzzy match
+  -require         require a Node module for use in -each expressions
+  -run             create commands on-the-fly and run them
+  -shape           create a polyline or polygon from coordinates
+  -subdivide       recursively split a layer using a JS expression
+```
+
+### Informational commands
+
+```
+  -calc            calculate statistics about the features in a layer
+  -encodings       print list of supported text encodings (for .dbf import)
+  -help, -h        print help; takes optional command name
+  -info            print information about data layers
+  -inspect         print information about a feature
+  -projections     print list of supported projections
+  -quiet           inhibit console messages
+  -verbose         print verbose processing messages
+  -version, -v     print mapshaper version
+```
+
+See original repo on [@mbloch/mapshaper](https://github.com/mbloch/mapshaper/wiki) for more.
+Original documentation below.
+
+------------------------------
+
+# Documentation from @mblock/mapshaper
+See the [full mapshaper README](https://github.com/mbloch/mapshaper/blob/master/README.md) for more information.
+
 ## Introduction
 
 Mapshaper is software for editing Shapefile, GeoJSON, [TopoJSON](https://github.com/mbostock/topojson/wiki), CSV and several other data formats, written in JavaScript.
@@ -15,8 +147,6 @@ Mapshaper is software for editing Shapefile, GeoJSON, [TopoJSON](https://github.
 Mapshaper supports essential map making tasks like simplifying shapes, editing attribute data, clipping, erasing, dissolving, filtering and more.
 
 See the [project wiki](https://github.com/mbloch/mapshaper/wiki) for documentation on how to use mapshaper.
-
-To suggest improvements, add an [issue](https://github.com/mbloch/mapshaper/issues).
 
 
 ## Command line tools
@@ -40,44 +170,6 @@ All processing is done in the browser, so your data stays private, even when usi
 
 The web UI works in recent desktop versions of Chrome, Firefox, Safari and Internet Explorer. Safari before v10.1 and IE before v10 are not supported.
 
-
-## Large file support
-
-**Web interface**
-
-Firefox is able to load Shapefiles and GeoJSON files larger than 1GB. Chrome has improved in recent versions, but is still prone to out-of-memory errors when importing files larger than several hundred megabytes.
-
-**Command line interface**
-
-When working with very large files, mapshaper may become unresponsive or crash with the message "JavaScript heap out of memory."
-
-One option is to run `mapshaper-xl`, which allocates more memory than the standard `mapshaper` program.
-
-Another solution is to run Node directly with the `--max-old-space-size` option. The following example (Mac or Linux) allocates 16GB of memory:
-```bash
-$ node  --max-old-space-size=16000 `which mapshaper` <mapshaper commands>
-```
-
-## Installation
-
-Mapshaper requires [Node.js](http://nodejs.org).
-
-With Node installed, you can install the latest release version of mapshaper using npm. Install with the "-g" flag to make the executable scripts available systemwide.
-
-```bash
-npm install -g mapshaper
-```
-
-To install and run the latest development code from github:
-
-```bash
-git clone git@github.com:mbloch/mapshaper.git
-cd mapshaper
-npm install       # install dependencies
-npm run build     # bundle source code files
-npm link          # (optional) add global symlinks so scripts are available systemwide
-```
-
 ## Building and testing
 
 From the project directory, run `npm run build` to build both the cli and web UI modules.
@@ -89,7 +181,6 @@ Run `npm test` to run mapshaper's tests.
 This software is licensed under [MPL 2.0](http://www.mozilla.org/MPL/2.0/).
 
 According to Mozilla's [FAQ](http://www.mozilla.org/MPL/2.0/FAQ.html), "The MPL's ‘file-level’ copyleft is designed to encourage contributors to share modifications they make to your code, while still allowing them to combine your code with code under other licenses (open or proprietary) with minimal restrictions."
-
 
 
 ## Acknowledgements
