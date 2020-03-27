@@ -282,9 +282,9 @@ utils.reduceAsync = function(arr, memo, iter, done) {
 internal.printStartupMessages = function() {
   // print heap memory message if running with a custom amount
   var rxp = /^--max-old-space-size=([0-9]+)$/;
-  var arg = process.execArgv.find(function(s) {
+  var arg = process.execArgv ? process.execArgv.find(function(s) {
     return rxp.test(s);
-  });
+  }) : null;
   if (arg) {
     message('Allocating', rxp.exec(arg)[1] / 1000, 'GB of heap memory');
   }
