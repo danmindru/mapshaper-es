@@ -1,13 +1,14 @@
 var api = require('../'),
-  assert = require('assert');
+  assert = require('assert'),
+  internal = api.internal;
 
 
 describe('mapshaper-options.js', function () {
 
   describe('import', function () {
-    var file1 = "test/test_data/two_states.shp",
-        file2 = "test/test_data/two_states.json",
-        file3 = "test/test_data/two_states.shx";
+    var file1 = "test/data/two_states.shp",
+        file2 = "test/data/two_states.json",
+        file3 = "test/data/two_states.shx";
 
     bad("-i precision " + file1);
     bad("-i precision 0 " + file1);
@@ -39,7 +40,7 @@ describe('mapshaper-options.js', function () {
  })
 
   describe('output', function() {
-    var dir1 = "test/test_data";
+    var dir1 = "test/data";
     bad("-o output.shx");
     bad("-o output.shp output.json"); // only one file per -o command
 
@@ -107,7 +108,6 @@ describe('mapshaper-options.js', function () {
   });
 
   describe('simplify', function() {
-    bad("-s") // no alias (add one?)
     bad("-simplify cartesian i 0.001")
     good("-simplify visvalingam 10%", {method: "visvalingam", percentage: '10%'})
     good("-simplify cartesian 1%", {planar: true, percentage: '1%'})
@@ -151,8 +151,8 @@ describe('mapshaper-options.js', function () {
   })
 
   describe('join', function() {
-    var file1 ="test/test_data/two_states.dbf",
-        file2 = "test/test_data/two_states.shp";
+    var file1 ="test/data/two_states.dbf",
+        file2 = "test/data/two_states.shp";
 
     good("-join " + file1 + " keys ID,FIPS fields FIPS,NAME", {source: file1, keys: ["ID","FIPS"], fields: ["FIPS","NAME"]})
     good("-join " + file1 + " keys ID,FIPS", {source: file1, keys: ["ID","FIPS"]}) // fields are optional
@@ -185,6 +185,7 @@ describe('mapshaper-options.js', function () {
     good("-dissolve", {});
     good("-dissolve STATE", {fields: ['STATE']});
     good("-dissolve STATE,REGION", {fields: ['STATE', 'REGION']});
+    good("-dissolve name=foo", {name: "foo"});
     good("-dissolve FIPS sum-fields POP copy-fields NAME,FIPS", {fields: ["FIPS"], copy_fields: ["NAME", "FIPS"], sum_fields: ["POP"]});
     bad("-dissolve STATE COUNTY");
     bad("-dissolve name -o"); // expects name=<lyr name>
@@ -241,8 +242,26 @@ describe('mapshaper-options.js', function () {
   })
 
   describe('syntax rules', function () {
-    good("--help", {}); // all commands accept -- prefix
-    bad("-dummy") // unknown command
+    // all commands accept alternative -- prefix
+    good("--help", {});
+
+    // -<command>=<value> syntax throws an error
+    bad('-target=layer1');
+
+  })
+
+
+  describe('Undefined command (gets parsed as tokens)', function() {
+
+    it('no arguments: empty token array', function() {
+      var parsed = internal.parseCommands('-dummy');
+      assert.deepEqual(parsed, [{name: 'dummy', _: [], options: {}}])
+    });
+
+    it ('arguments are imported as tokens', function() {
+      var parsed = internal.parseCommands('-dummy a   b=c  d=e,f ');
+      assert.deepEqual(parsed, [{name: 'dummy', _: ['a', 'b=c', 'd=e,f'], options: {}}])
+    });
   })
 
 })
@@ -250,14 +269,14 @@ describe('mapshaper-options.js', function () {
 function bad(str) {
   it(str, function() {
     assert.throws(function() {
-      api.internal.parseCommands(str);
+      internal.parseCommands(str);
     });
   })
 }
 
 function good(str, reference) {
   it(str, function() {
-    var parsed = api.internal.parseCommands(str);
+    var parsed = internal.parseCommands(str);
     var target = parsed[0].options;
     assert.deepEqual(target, reference);
   })

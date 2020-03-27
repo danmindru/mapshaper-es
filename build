@@ -9,14 +9,13 @@ var requiredModules = [
     'fs',
     'flatbush',
     'rw',
-    'path',
-    'd3-dsv'
+    'path'
   ];
 
 
 require("catty")({follow: follow})
   .addLibrary("src")
-  .cat("src/gui/mapshaper-gui.js", './www/mapshaper-gui.js')
+  .cat("src/gui/gui.js", './www/mapshaper-gui.js')
   .prepend("VERSION = '" + version + "';")
   .cat("src/mapshaper.js", onCat);
 

@@ -23,6 +23,16 @@ describe('mapshaper-join.js', function () {
       });
     });
 
+    it('don\'t throw an error if external table is empty', function(done) {
+      var a = 'id,name\n1,foo';
+      var b = 'key,score';
+      api.applyCommands('a.csv -join b.csv keys=id,key fields=* -o', {'a.csv': a, 'b.csv': b}, function(err, out) {
+        assert.deepEqual(out['a.csv'], 'id,name\n1,foo');
+        done();
+      });
+
+    });
+
     it('error if source and target key fields have different types', function(done) {
       var a = 'id,name\n1,foo';
       var b = 'key,score\n1,100';
@@ -55,6 +65,24 @@ describe('mapshaper-join.js', function () {
       var b = 'key,score\n1,100';
       api.applyCommands('a.csv -join b.csv keys=id,key -o', {'a.csv': a, 'b.csv': b}, function(err, out) {
         assert.deepEqual(out['a.csv'], 'id,score\n1,100');
+        done();
+      });
+    });
+
+    it('prefix= option adds prefix to external fields', function(done) {
+      var a = 'id\n1';
+      var b = 'key,score\n1,100';
+      api.applyCommands('a.csv -join b.csv keys=id,key prefix="b-" -o', {'a.csv': a, 'b.csv': b}, function(err, out) {
+        assert.deepEqual(out['a.csv'], 'id,b-score\n1,100');
+        done();
+      });
+    });
+
+    it('prefix= option prevents conflicts', function(done) {
+      var a = 'id,foo\n1,50';
+      var b = 'key,foo\n1,100';
+      api.applyCommands('a.csv -join b.csv keys=id,key prefix="b-" -o', {'a.csv': a, 'b.csv': b}, function(err, out) {
+        assert.deepEqual(out['a.csv'], 'id,foo,b-foo\n1,50,100');
         done();
       });
     });
@@ -100,8 +128,8 @@ describe('mapshaper-join.js', function () {
     });
 
     it('test1, with field-types= option', function (done) {
-      var shp = "test/test_data/two_states.shp";
-      var csv = "test/test_data/text/states.csv";
+      var shp = "test/data/two_states.shp";
+      var csv = "test/data/text/states.csv";
       var cmd = api.utils.format("-i %s -join %s keys=FIPS,STATE_FIPS fields=POP2010,SUB_REGION field-types=STATE_FIPS:str", shp, csv),
           target = [{"STATE_NAME":"Oregon","FIPS":"41","STATE":"OR","LAT":43.94,"LONG":-120.55,"POP2010":3831074,"SUB_REGION":"Pacific"},
           {"STATE_NAME":"Washington","FIPS":"53","STATE":"WA","LAT":47.38,"LONG":-120.00,"POP2010":6724540,"SUB_REGION":"Pacific"}];
@@ -113,8 +141,8 @@ describe('mapshaper-join.js', function () {
     })
 
     it('test2, with string-fields= option', function (done) {
-      var shp = "test/test_data/two_states.shp";
-      var csv = "test/test_data/text/states.csv";
+      var shp = "test/data/two_states.shp";
+      var csv = "test/data/text/states.csv";
       var cmd = api.utils.format("-i %s -join %s keys=FIPS,STATE_FIPS fields=POP2010,SUB_REGION string-fields=STATE_FIPS,POP2010", shp, csv),
           target = [{"STATE_NAME":"Oregon","FIPS":"41","STATE":"OR","LAT":43.94,"LONG":-120.55,"POP2010":"3831074","SUB_REGION":"Pacific"},
           {"STATE_NAME":"Washington","FIPS":"53","STATE":"WA","LAT":47.38,"LONG":-120.00,"POP2010":"6724540","SUB_REGION":"Pacific"}];
@@ -126,8 +154,8 @@ describe('mapshaper-join.js', function () {
     })
 
     it('join layers from two separately loaded datasets', function(done) {
-      var shp = "test/test_data/two_states.shp";
-      var csv = "test/test_data/text/states.csv";
+      var shp = "test/data/two_states.shp";
+      var csv = "test/data/text/states.csv";
       var cmd = api.utils.format("-i %s -i %s field-types=STATE_FIPS:str -join target=two_states states keys=FIPS,STATE_FIPS fields=POP2010,SUB_REGION ", shp, csv);
       var target = [{"STATE_NAME":"Oregon","FIPS":"41","STATE":"OR","LAT":43.94,"LONG":-120.55,"POP2010":3831074,"SUB_REGION":"Pacific"},
           {"STATE_NAME":"Washington","FIPS":"53","STATE":"WA","LAT":47.38,"LONG":-120.00,"POP2010":6724540,"SUB_REGION":"Pacific"}];

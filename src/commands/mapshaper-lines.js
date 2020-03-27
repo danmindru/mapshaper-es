@@ -4,11 +4,60 @@ api.lines = function(lyr, dataset, opts) {
   opts = opts || {};
   if (lyr.geometry_type == 'point') {
     return internal.pointsToLines(lyr, dataset, opts);
+  } else if (opts.segments) {
+    return [internal.convertShapesToSegments(lyr, dataset)];
+  } else if (opts.arcs) {
+    return [internal.convertShapesToArcs(lyr, dataset)];
   } else if (lyr.geometry_type == 'polygon') {
     return internal.polygonsToLines(lyr, dataset.arcs, opts);
   } else {
     internal.requirePolygonLayer(lyr, "Command requires a polygon or point layer");
   }
+};
+
+internal.convertShapesToArcs = function(lyr, dataset) {
+  var arcs = dataset.arcs;
+  var test = internal.getArcPresenceTest(lyr.shapes, arcs);
+  var records = [];
+  var shapes = [];
+  for (var i=0, n=arcs.size(); i<n; i++) {
+    if (!test(i)) continue;
+    records.push({arcid: i});
+    shapes.push([[i]]);
+  }
+  return {
+    geometry_type: 'polyline',
+    data: new DataTable(records),
+    shapes: shapes
+  };
+};
+
+internal.convertShapesToSegments = function(lyr, dataset) {
+  var arcs = dataset.arcs;
+  var features = [];
+  var geojson = {type: 'FeatureCollection', features: []};
+  var test = internal.getArcPresenceTest(lyr.shapes, arcs);
+  var arcId;
+  for (var i=0, n=arcs.size(); i<n; i++) {
+    arcId = i;
+    if (!test(arcId)) continue;
+    arcs.forEachArcSegment(arcId, onSeg);
+  }
+  function onSeg(i1, i2, xx, yy) {
+    var a = xx[i1],
+        b = yy[i1],
+        c = xx[i2],
+        d = yy[i2];
+    geojson.features.push({
+      type: 'Feature',
+      properties: {arc: arcId, i1: i1, i2: i2, x1: a, y1: b, x2: c, y2: d},
+      geometry: {type: 'LineString', coordinates: [[a, b], [c, d]]}
+    });
+  }
+  var merged = internal.mergeDatasets([dataset, internal.importGeoJSON(geojson, {})]);
+  dataset.arcs = merged.arcs;
+  // api.buildTopology(dataset);
+  return merged.layers.pop();
 };
 
 internal.pointsToLines = function(lyr, dataset, opts) {
@@ -62,7 +111,7 @@ internal.polygonsToLines = function(lyr, arcs, opts) {
   opts = opts || {};
   var filter = opts.where ? internal.compileFeaturePairFilterExpression(opts.where, lyr, arcs) : null,
       decorateRecord = opts.each ? internal.getLineRecordDecorator(opts.each, lyr, arcs) : null,
-      classifier = internal.getArcClassifier(lyr.shapes, arcs, filter),
+      classifier = internal.getArcClassifier(lyr.shapes, arcs, {filter: filter}),
       fields = utils.isArray(opts.fields) ? opts.fields : [],
       rankId = 0,
       shapes = [],
@@ -86,9 +135,7 @@ internal.polygonsToLines = function(lyr, arcs, opts) {
       }
       return a + '-' + b;
     };
-    if (!lyr.data.fieldExists(field)) {
-      stop("Unknown data field:", field);
-    }
+    internal.requireDataField(lyr, field);
     addLines(internal.extractLines(lyr.shapes, classifier(key)), field);
   });
 

@@ -27,7 +27,7 @@ internal.identifyJSONObject = function(o) {
     fmt = 'topojson';
   } else if (o.type) {
     fmt = 'geojson';
-  } else if (utils.isArray(o)) {
+  } else if (utils.isArray(o) || o.json_path) {
     fmt = 'json';
   }
   return fmt;
@@ -93,11 +93,15 @@ internal.importJSON = function(data, opts) {
       try {
         content = JSON.parse(content); // ~3sec for 100MB string
       } catch(e) {
-        stop("Unable to parse JSON");
+        // stop("Unable to parse JSON");
+        stop('JSON parsing error --', e.message);
       }
     }
     if (opts.json_path) {
       content = internal.selectFromObject(content, opts.json_path);
+      if (Array.isArray(content) === false) {
+        stop('Expected an array at JSON path:', opts.json_path);
+      }
     }
     retn.format = internal.identifyJSONObject(content, opts);
     if (retn.format == 'topojson') {
@@ -114,13 +118,22 @@ internal.importJSON = function(data, opts) {
   return retn;
 };
 
-// path: path from top-level to the target object, as a list of property
-//   names separated by '.'
+// path: path from top-level to the target object
 internal.selectFromObject = function(o, path) {
-  var parts = path.split('.');
-  var value = o && o[parts[0]];
-  if (parts > 1) {
-    return internal.selectFromObject(value, parts.slice(1).join(''));
+  var arrayRxp = /(.*)\[([0-9]+)\]$/;
+  var separator = path.indexOf('/') > 0 ? '/' : '.';
+  var parts = path.split(separator);
+  var subpath, array, match;
+  while (parts.length > 0) {
+    subpath = parts.shift();
+    match = arrayRxp.exec(subpath);
+    if (match) {
+      array = o[match[1]];
+      o = array && array[+match[2]] || null;
+    } else {
+      o = o[subpath];
+    }
+    if (!o) return null;
   }
-  return value;
+  return o;
 };

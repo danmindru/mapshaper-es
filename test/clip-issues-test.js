@@ -34,9 +34,9 @@ describe('mapshaper-clip-erase.js', function () {
     describe('inner2.json test', function () {
       it('polygon should not disappear after clipping', function (done) {
         // previously, inner2.json disappeared after clipping
-        var cmd = '-i test/test_data/issues/clip_errors/inner2.json -clip test/test_data/issues/clip_errors/outer.json -o';
+        var cmd = '-i test/data/features/clip/ex1_inner2.json -clip test/data/features/clip/ex1_outer.json -o';
         api.applyCommands(cmd, {}, function(err, output) {
-          var json = JSON.parse(output['inner2.json']);
+          var json = JSON.parse(output['ex1_inner2.json']);
           assert.equal(json.features[0].geometry.coordinates.length, 1); //
           done();
         })
@@ -125,7 +125,8 @@ describe('mapshaper-clip-erase.js', function () {
         api.applyCommands('-i poly.json -clip bbox=-1,0,0,1 -o', {'poly.json': polygon}, function(err, output) {
           var geojson = JSON.parse(output['poly.json']);
           var coords = geojson.geometries[0].coordinates[0];
-          assert.deepEqual(coords, [[-0.9,0.4],[-0.4,0.4],[-0.4,0],[-0.9,0], [-0.9, 0.4]])
+          // slightly out-of-range coordinates are tolerated now
+          assert.deepEqual(coords, [[-0.9,0.4],[-0.4,0.4],[-0.4,0],[-0.9,-1.734723475976807e-18], [-0.9, 0.4]])
           done();
         });
       })

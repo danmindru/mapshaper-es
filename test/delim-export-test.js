@@ -5,6 +5,28 @@ var api = require('../'),
 
 describe('mapshaper-delim-export.js', function() {
 
+  describe('getDelimValueFormatter()', function () {
+    var csv = api.internal.getDelimValueFormatter(',');
+    var tsv = api.internal.getDelimValueFormatter('\t');
+    it('Applies quotes when needed', function () {
+      assert.equal(csv('"'), '""""');
+      assert.equal(csv('"yes" or "no"'), '"""yes"" or ""no"""');
+      assert.equal(csv('\n\n'), '"\n\n"');
+      assert.equal(csv('a\r'), '"a\r"');
+      assert.equal(csv(',,'), '",,"');
+      assert.equal(csv('\t'), '\t');
+      assert.equal(tsv(',,'), ',,');
+      assert.equal(tsv('\t'), '"\t"');
+      assert.equal(tsv('a\tb'), '"a\tb"');
+    })
+    it('Number formatting', function () {
+      assert.equal(csv(0), '0');
+      assert.equal(csv(-45), '-45');
+      assert.equal(csv(5.6), '5.6');
+    })
+
+  })
+
   describe('csv export with encoding=', function () {
     // iconv-lite's latin1 output changed in version 0.4.16 (? replacement stopped working)
     // reverted to v0.4.15
@@ -65,6 +87,13 @@ describe('mapshaper-delim-export.js', function() {
       assert.equal(csv, target);
     });
 
+    it('booleans are exported as "true" and "false"', function() {
+      var data = new api.internal.DataTable([{foo: true, bar: false}]);
+      var csv = api.internal.exportLayerAsDSV({data: data}, ',');
+      var target = 'foo,bar\ntrue,false';
+      assert.equal(csv, target);
+    })
+
     it('arrays are exported as JSON', function() {
       var data = new api.internal.DataTable([{foo: [], bar: ["a", "b"]}]);
       var csv = api.internal.exportLayerAsDSV({data: data}, ',');
@@ -101,6 +130,13 @@ describe('mapshaper-delim-export.js', function() {
     it('empty strings are preserved', function() {
       var input = 'a,b,c\nfoo,3,\n,,';
       assert.equal(roundtrip(input), input);
+    })
+
+    it('quoting is applied correctly', function() {
+      var a = 'a,b,c,d,e\n"""",",,","a\nb","c\r",\t';
+      var b = 'a|b|c|d|e\n""""|"||"|"a\nb"|"c\r"|,';
+      assert.equal(roundtrip(a), a);
+      assert.equal(roundtrip(b), b);
     })
 
   })

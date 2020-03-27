@@ -81,7 +81,8 @@ body {
 
 .dialog-btn:hover,
 .header-btn:hover,
-.dialog-btn.default-btn {
+.dialog-btn.default-btn,
+.dialog-btn.selected-btn {
 	background-color: #0F5A84;
 }
 
@@ -202,6 +203,33 @@ body {
 	border-left: 1px solid white;
 	height: 10px;
 	margin: 0 2px 0 2px;
+}
+
+/* --- Selection tool dialog --------- */
+
+.selection-tool-options {
+	pointer-events: none;
+}
+
+.selection-tool-options .btn {
+	pointer-events: initial;
+}
+
+/* --- Box tool dialog --------- */
+.box-tool-options {
+	pointer-events: none;
+}
+
+.box-tool-options .btn {
+	pointer-events: initial;
+}
+
+.box-tool-options .info-box {
+	text-align: center;
+}
+
+.box-tool-options .box-coords {
+	pointer-events: initial;
 }
 
 /* --- Export dialog --------- */
@@ -1000,6 +1028,8 @@ img.close-btn:hover,
 	cursor: pointer;
 }
 
+/* ---  MAP BUTTONS --- */
+
 .nav-buttons {
 	z-index: 20;
 	position: absolute;
@@ -1015,55 +1045,67 @@ img.close-btn:hover,
 
 .nav-sub-btn {
 	position: absolute;
+	display: none;
 	cursor: pointer;
-	top: 1px;
+	top: 4px;
 	padding: 4px;
-	right: 19px;
-	z-index: 1;
+	right: 20px;
+	z-index: -2;
 }
-
+.nav-sub-btn svg * {
+	fill: black !important;
+}
 .nav-sub-menu {
 	position: absolute;
-	top: 1px;
-	right: 22px;
-	white-space: nowrap;
-	background-color: rgba(255, 255, 255, 0.85);
-	padding: 3px 0px 3px 6px;
+	top: 5px;
+	right: 21px;
+	z-index: -1;
+	display: none;
+	pointer-events: none;
+}
+
+.nav-btn.open .nav-sub-menu {
+	display: block;
+	pointer-events: inherit;
 }
 
 .nav-menu-item {
-	white-space: inherit;
-	display: inline-block;
-	padding-right: 6px;
-	color: #222;
-	font-weight: bold;
-}
-
-.nav-menu-link {
-	text-decoration: none;
-	cursor: pointer;
+	background-color: white;
 	color: #0774a5; /* .colored-text color */
-	font-weight: normal;
+	float: right;
+	clear: right;
+	white-space: nowrap;
+	display: inline-block;
+	padding: 2px 6px;
+	line-height: 13px;
+	cursor: pointer;
 }
 
-.nav-menu-link.selected {
+
+.nav-menu-item.selected,
+.nav-menu-item:hover:not(.nav-menu-title) {
 	color: black;
 	font-weight: bold;
-	text-decoration: none;
-	/* pointer-events: none; */
+}
+
+/* bullets https://www.w3schools.com/charsets/ref_utf_geometric.asp */
+.nav-sub-menu.active .nav-menu-item.selected:before {
+	content: "\25B8  "
 }
 
 .nav-btn {
+	position: relative;
 	cursor:pointer;
 	padding: 3px;
+	margin-bottom: 1px;
 	line-height: 1;
 }
 
-.nav-btn:hover:not(.disabled) * {
+.nav-btn.hover:not(.disabled) svg * {
 	fill: black;
 }
 
-.nav-btn.selected:not(.disabled) * {
+.nav-btn.selected:not(.disabled) svg * {
 	fill: white;
 }
 
@@ -1081,6 +1123,11 @@ img.close-btn:hover,
 	position: absolute;
 	border: 1px solid #f74b80;
 	z-index: 15;
+	pointer-events: none;
+}
+
+.zoom-box.zooming {
+	border-color: #0774a5;
 }
 
 

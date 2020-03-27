@@ -2,7 +2,7 @@
 mapshaper-common
 mapshaper-option-parser
 mapshaper-option-validation
-mapshaper-chunker
+mapshaper-option-parsing-utils
 */
 
 internal.getOptionParser = function() {
@@ -16,7 +16,9 @@ internal.getOptionParser = function() {
       noReplaceOpt = {
         alias: '+',
         type: 'flag',
-        describe: 'retain the original layer(s) instead of replacing'
+        label: '+, no-replace', // show alias as primary option
+        // describe: 'retain the original layer(s) instead of replacing'
+        describe: 'retain both input and output layer(s)'
       },
       noSnapOpt = {
         // describe: 'don't snap points before applying command'
@@ -30,8 +32,16 @@ internal.getOptionParser = function() {
         type: 'distance'
       },
       minGapAreaOpt = {
-        describe: 'smaller gaps than this are filled (default is small)',
+        old_alias: 'min-gap-area',
+        describe: 'threshold for filling gaps, e.g. 1.5km2 (default is small)',
         type: 'area'
+      },
+      sliverControlOpt = {
+        describe: 'boost gap-fill-area of slivers (0-1, default is 1)',
+        type: 'number'
+      },
+      calcOpt = {
+        describe: 'use a JS expression to aggregate data values'
       },
       sumFieldsOpt = {
         describe: 'fields to sum when dissolving  (comma-sep. list)',
@@ -44,10 +54,10 @@ internal.getOptionParser = function() {
       dissolveFieldsOpt = {
         DEFAULT: true,
         type: 'strings',
-        describe: '(optional) field or fields to dissolve on (comma-sep. list)'
+        describe: '(optional) field(s) to dissolve on (comma-sep. list)'
       },
       fieldTypesOpt = {
-        describe: 'type hints for csv source files, e.g. FIPS:str,STATE_FIPS:str',
+        describe: 'type hints for csv source files, e.g. FIPS:str,ZIPCODE:str',
         type: 'strings'
       },
       stringFieldsOpt = {
@@ -57,6 +67,10 @@ internal.getOptionParser = function() {
       bboxOpt = {
         type: 'bbox',
         describe: 'comma-sep. bounding box: xmin,ymin,xmax,ymax'
+      },
+      invertOpt = {
+        type: 'flag',
+        describe: 'retain only features that would have been deleted'
       },
       whereOpt = {
         describe: 'use a JS expression to select a subset of features'
@@ -144,12 +158,28 @@ internal.getOptionParser = function() {
     .option('json-path', {
       // describe: path to an array of data values
     })
+    .option('csv-skip-lines', {
+      type: 'integer',
+      describe: '[CSV] number of lines to skip at the beginning of the file'
+    })
+    .option('csv-lines', {
+      type: 'integer',
+      describe: '[CSV] number of data records to read'
+    })
+    .option('csv-field-names', {
+      type: 'strings',
+      describe: '[CSV] comma-sep. list of field names to assign each column'
+    })
     .option('csv-filter', {
       describe: '[CSV] JS expression for filtering records'
     })
     .option('csv-fields', {
       type: 'strings',
       describe: '[CSV] comma-sep. list of fields to import'
+    })
+    .option('json-path', {
+      old_alias: 'json-subtree',
+      describe: '[JSON] path to an array of data records; separator is /'
     });
 
   parser.command('o')
@@ -263,7 +293,7 @@ internal.getOptionParser = function() {
       describe: '(SVG/TopoJSON) space betw. data and viewport (default is 1)'
     })
     .option('pixels', {
-      describe: '(SVG/TopoJSON) output area in pixels (alternative to width=)',
+      describe: '(SVG/TopoJSON) output area in pix. (alternative to width=)',
       type: 'number'
     })
     .option('svg-scale', {
@@ -292,6 +322,28 @@ internal.getOptionParser = function() {
     });
 
   parser.section('Editing commands');
+
+  parser.command('affine')
+    .describe('transform coordinates by shifting, scaling and rotating')
+    .flag('no_args')
+    .option('shift', {
+      type: 'strings',
+      describe: 'x,y offsets in source units (e.g. 5000,-5000)'
+    })
+    .option('scale', {
+      type: 'number',
+      describe: 'scale (default is 1)'
+    })
+    .option('rotate', {
+      type: 'number',
+      describe: 'angle of rotation in degrees (default is 0)'
+    })
+    .option('anchor', {
+      type: 'numbers',
+      describe: 'center of rotation/scaling (default is center of selected shapes)'
+    })
+    .option('where', whereOpt)
+    .option('target', targetOpt);
 
   parser.command('buffer')
     // .describe('')
@@ -327,12 +379,13 @@ internal.getOptionParser = function() {
       describe: 'distance units (meters|miles|km|feet) (default is meters)'
     })
     .option('name', nameOpt)
-    .option('no-replace', noReplaceOpt)
-    .option('target', targetOpt);
+    .option('target', targetOpt)
+    .option('no-replace', noReplaceOpt);
 
   parser.command('clean')
-    .describe('repairs overlaps and small gaps in polygon layers')
-    .option('min-gap-area', minGapAreaOpt)
+    .describe('fixes geometry issues, such as polygon overlaps and gaps')
+    .option('gap-fill-area', minGapAreaOpt)
+    .option('sliver-control', sliverControlOpt)
     .option('snap-interval', snapIntervalOpt)
     .option('no-snap', noSnapOpt)
     .option('allow-empty', {
@@ -347,6 +400,9 @@ internal.getOptionParser = function() {
     // })
     .option('arcs', {
       describe: 'remove unused arcs',
+      type: 'flag'
+    })
+    .option('debug', {
       type: 'flag'
     })
     .option('no-arc-dissolve', {
@@ -371,9 +427,45 @@ internal.getOptionParser = function() {
         describe: 'experimental fast bbox clipping'
       })
     .option('name', nameOpt)
-    .option('no-replace', noReplaceOpt)
     .option('no-snap', noSnapOpt)
-    .option('target', targetOpt);
+    .option('target', targetOpt)
+    .option('no-replace', noReplaceOpt);
+
+  parser.command('colorizer')
+    .describe('define a function to convert data values to color classes')
+    .flag('no_arg')
+    .option('colors', {
+      describe: 'comma-separated list of CSS colors',
+      type: 'colors'
+    })
+    .option('breaks', {
+      describe: 'ascending-order list of breaks for sequential color scheme',
+      type: 'numbers'
+    })
+    .option('categories', {
+      describe: 'comma-sep. list of keys for categorical color scheme',
+      type: 'strings'
+    })
+    .option('random', {
+      describe: 'randomly assign colors',
+      type: 'flag'
+    })
+    .option('other', {
+      describe: 'default color for categorical scheme (defaults to no-data color)'
+    })
+    .option('nodata', {
+      describe: 'color to use for invalid or missing data (default is white)'
+    })
+    .option('name', {
+      describe: 'function name to use in -each and -svg-style commands'
+    })
+    .option('precision', {
+      describe: 'rounding precision to apply before classification (e.g. 0.1)',
+      type: 'number'
+    })
+    .example('Define a sequential color scheme and use it to create a new field\n' +
+        '$ mapshaper data.json -colorizer name=getColor nodata=#eee breaks=20,40 \\\n' +
+        '  colors=#e0f3db,#a8ddb5,#43a2ca -each \'fill = getColor(RATING)\' -o output.json');
 
   parser.command('dissolve')
     .describe('merge features within a layer')
@@ -384,11 +476,13 @@ internal.getOptionParser = function() {
       '$ mapshaper counties.shp -dissolve STATE_FIPS copy-fields=STATE_NAME sum-fields=POPULATION -o states.shp')
     .option('field', {}) // old arg handled by dissolve function
     .option('fields', dissolveFieldsOpt)
-    .option('calc', {
-      describe: 'use a JS expression to aggregate data values'
-    })
+    .option('calc', calcOpt)
     .option('sum-fields', sumFieldsOpt)
     .option('copy-fields', copyFieldsOpt)
+    .option('group-points', {
+      type: 'flag',
+      describe: '[points] group points instead of converting to centroids'
+    })
     .option('weight', {
       describe: '[points] field or expression to use for weighting centroid'
     })
@@ -397,42 +491,53 @@ internal.getOptionParser = function() {
       describe: '[points] use 2D math to find centroids of latlong points'
     })
     .option('name', nameOpt)
-    .option('no-replace', noReplaceOpt)
-    .option('target', targetOpt);
+    .option('target', targetOpt)
+    .option('no-replace', noReplaceOpt);
 
-  parser.command('dissolve2_v1')
-    // .describe('merge adjacent polygons (repairs overlaps and gaps)')
-    .option('field', {}) // old arg handled by dissolve function
-    .option('fields', dissolveFieldsOpt)
-    .option('arcs', {type: 'flag'}) // debugging option
-    .option('calc', {
-      describe: 'use a JS expression to aggregate data values'
-    })
-    .option('sum-fields', sumFieldsOpt)
-    .option('copy-fields', copyFieldsOpt)
-    .option('min-gap-area', minGapAreaOpt)
-    .option('name', nameOpt)
-    .option('no-replace', noReplaceOpt)
-    .option('no-snap', noSnapOpt)
-    .option('target', targetOpt);
 
-  // for testing replacement for dissolve2
   parser.command('dissolve2')
     .describe('merge adjacent polygons (repairs overlaps and gaps)')
     .option('field', {}) // old arg handled by dissolve function
     .option('fields', dissolveFieldsOpt)
-    .option('mosaic', {type: 'flag'}) // debugging option
-    .option('arcs', {type: 'flag'}) // debugging option
-    .option('tiles', {type: 'flag'}) // debugging option
-    .option('calc', {
-      describe: 'use a JS expression to aggregate data values'
-    })
+    // UPDATE: Use -mosaic command for debugging
+    //.option('mosaic', {type: 'flag'}) // debugging option
+    //.option('arcs', {type: 'flag'}) // debugging option
+    //.option('tiles', {type: 'flag'}) // debugging option
+    .option('calc', calcOpt)
     .option('sum-fields', sumFieldsOpt)
     .option('copy-fields', copyFieldsOpt)
-    .option('min-gap-area', minGapAreaOpt)
+    .option('gap-fill-area', minGapAreaOpt)
+    .option('sliver-control', sliverControlOpt)
     .option('name', nameOpt)
-    .option('no-replace', noReplaceOpt)
     .option('no-snap', noSnapOpt)
+    .option('target', targetOpt)
+    .option('no-replace', noReplaceOpt);
+
+  parser.command('divide')
+    .describe('divide lines by polygons, copy data from polygons to lines')
+    .option('fields', {
+      describe: 'fields to copy (comma-sep.) (default is all but key field)',
+      type: 'strings'
+    })
+    .option('calc', {
+      describe: 'use a JS expression to assign values (for many-to-one joins)'
+    })
+    .option('force', {
+      describe: 'replace values from same-named fields',
+      type: 'flag'
+    })
+    .option('source', {
+      DEFAULT: true,
+      describe: 'file or layer containing polygons'
+    })
+    .option('target', targetOpt);
+    // .option('no-replace', noReplaceOpt);
+
+  parser.command('dots')
+    .describe('')
+    .option('field', {
+      describe: 'field containing number of dots'
+    })
     .option('target', targetOpt);
 
   parser.command('drop')
@@ -451,7 +556,6 @@ internal.getOptionParser = function() {
       describe: 'delete a list of attribute data fields, e.g. \'id,name\' \'*\''
     })
     .option('target', targetOpt);
-
 
   parser.command('each')
     .describe('create/update/delete data fields using a JS expression')
@@ -477,9 +581,9 @@ internal.getOptionParser = function() {
     })
     .option('bbox', bboxOpt)
     .option('name', nameOpt)
-    .option('no-replace', noReplaceOpt)
     .option('no-snap', noSnapOpt)
-    .option('target', targetOpt);
+    .option('target', targetOpt)
+    .option('no-replace', noReplaceOpt);
 
   parser.command('explode')
     .describe('divide multi-part features into single-part features')
@@ -492,6 +596,11 @@ internal.getOptionParser = function() {
       DEFAULT: true,
       describe: 'delete features that evaluate to false'
     })
+    .option('bbox', {
+      describe: 'delete features outside bbox (xmin,ymin,xmax,ymax)',
+      type: 'bbox'
+    })
+    .option('invert', invertOpt)
     .option('remove-empty', {
       type: 'flag',
       describe: 'delete features with null geometry'
@@ -501,8 +610,8 @@ internal.getOptionParser = function() {
     })
     .option('cleanup', {type: 'flag'}) // TODO: document
     .option('name', nameOpt)
-    .option('no-replace', noReplaceOpt)
-    .option('target', targetOpt);
+    .option('target', targetOpt)
+    .option('no-replace', noReplaceOpt);
 
   parser.command('filter-fields')
     .describe('retain a subset of data fields')
@@ -525,7 +634,7 @@ internal.getOptionParser = function() {
     .describe('remove small detached polygon rings (islands)')
     .option('min-area', {
       type: 'area',
-      describe: 'remove small-area islands (sq meters or projected units)'
+      describe: 'remove small-area islands (e.g. 10km2)'
     })
     .option('min-vertices', {
       type: 'integer',
@@ -541,11 +650,15 @@ internal.getOptionParser = function() {
     .describe('remove small polygon rings')
     .option('min-area', {
       type: 'area',
-      describe: 'remove small-area rings (sq meters or projected units)'
+      describe: 'area threshold (e.g. 2sqkm)'
+    })
+    .option('sliver-control', {
+      describe: 'boost area threshold of slivers (0-1, default is 1)',
+      type: 'number'
     })
     .option('weighted', {
+      // describe: 'multiply min-area by Polsby-Popper compactness (0-1)'
       type: 'flag',
-      describe: 'multiply min-area by Polsby-Popper compactness (0-1)'
     })
     /*
     .option('remove-empty', {
@@ -558,14 +671,40 @@ internal.getOptionParser = function() {
   parser.command('graticule')
     .describe('create a graticule layer');
 
+  parser.command('grid')
+    .describe('create a grid of square or hexagonal polygons')
+    .option('type', {
+      describe: 'square, hex or hex2 (default is square)'
+    })
+    .option('interval', {
+      describe: 'side length (e.g. 500m, 12km)',
+      type: 'distance'
+    })
+    // .option('cols', {
+    //   type: 'integer'
+    // })
+    // .option('rows', {
+    //   type: 'integer'
+    // })
+    // .option('bbox', {
+    //   type: 'bbox',
+    //   describe: 'xmin,ymin,xmax,ymax (default is bbox of data)'
+    // })
+    .option('debug', {
+      type: 'flag'
+    })
+    .option('name', nameOpt)
+    .option('target', targetOpt)
+    .option('no-replace', noReplaceOpt);
+
   parser.command('innerlines')
     .describe('convert polygons to polylines along shared edges')
     .flag('no_arg')
     .option('where', whereOpt2)
     // .option('each', eachOpt2)
     .option('name', nameOpt)
-    .option('no-replace', noReplaceOpt)
-    .option('target', targetOpt);
+    .option('target', targetOpt)
+    .option('no-replace', noReplaceOpt);
 
   parser.command('join')
     .describe('join data records from a file or layer to a layer')
@@ -581,11 +720,11 @@ internal.getOptionParser = function() {
       describe: 'file or layer containing data records'
     })
     .option('keys', {
-      describe: 'join by matching target,source key fields; e.g. keys=FIPS,ID',
+      describe: 'join by matching target,source key fields, e.g. keys=FID,id',
       type: 'strings'
     })
     .option('calc', {
-      describe: 'use a JS expression to assign values in many-to-one joins'
+      describe: 'use a JS expression to assign values (for many-to-one joins)'
     })
     .option('where', {
       describe: 'use a JS expression to filter source records'
@@ -593,6 +732,21 @@ internal.getOptionParser = function() {
     .option('fields', {
       describe: 'fields to copy (comma-sep.) (default is all but key field)',
       type: 'strings'
+    })
+    .option('prefix', {
+      describe: 'prefix for renaming fields joined from the source table'
+    })
+    .option('interpolate', {
+      describe: '(polygon-polygon join) list of area-interpolated fields',
+      type: 'strings'
+    })
+    .option('point-method', {
+      describe: '(polygon-polygon join) join polygons via inner points',
+      type: 'flag'
+    })
+    .option('planar', {
+      // describe: 'use planar geometry when interpolating by area' // useful for testing
+      type: 'flag'
     })
     .option('string-fields', stringFieldsOpt)
     .option('field-types', fieldTypesOpt)
@@ -624,12 +778,20 @@ internal.getOptionParser = function() {
     })
     .option('where', whereOpt2)
     .option('each', eachOpt2)
+    .option('segments', {
+      describe: 'convert paths to segments, for debugging',
+      type: 'flag'
+    })
+    .option('arcs', {
+      describe: 'convert paths to arcs, for debugging',
+      type: 'flag'
+    })
     .option('groupby', {
       describe: 'field for grouping point input into multiple lines'
     })
     .option('name', nameOpt)
-    .option('no-replace', noReplaceOpt)
-    .option('target', targetOpt);
+    .option('target', targetOpt)
+    .option('no-replace', noReplaceOpt);
 
   parser.command('merge-layers')
     .describe('merge multiple layers into as few layers as possible')
@@ -642,17 +804,12 @@ internal.getOptionParser = function() {
     .option('target', targetOpt);
 
   parser.command('mosaic')
+    .describe('convert a polygon layer with overlaps into a flat mosaic')
+    .option('calc', calcOpt)
     .option('debug', {type: 'flag'})
-    .option('target', targetOpt);
-
-  parser.command('overlay')
-    // .describe('convert polygons to polylines along shared edges')
-    .option('source', {
-      DEFAULT: true,
-      describe: 'file or layer containing overlay polygons'
-    })
-    .option('no-replace', noReplaceOpt)
-    .option('target', targetOpt);
+    .option('name', nameOpt)
+    .option('target', targetOpt)
+    .option('no-replace', noReplaceOpt);
 
   parser.command('point-grid')
     .describe('create a rectangular grid of points')
@@ -720,31 +877,16 @@ internal.getOptionParser = function() {
       type: 'distance'
     })
     .option('name', nameOpt)
-    .option('no-replace', noReplaceOpt)
-    .option('target', targetOpt);
+    .option('target', targetOpt)
+    .option('no-replace', noReplaceOpt);
 
-  parser.command('polygon-grid')
-    // .describe('create a rectangular grid of cells')
-    .validate(validateGridOpts)
-    .option('-', {
-      label: '<cols,rows>',
-      describe: 'size of the grid, e.g. -point-grid 100,100'
+  parser.command('polygons')
+    .describe('convert polylines to polygons')
+    .option('gap-tolerance', {
+      describe: 'specify gap tolerance in source units',
+      type: 'distance'
     })
-    .option('interval', {
-      describe: 'distance between adjacent points, in source units',
-      type: 'number'
-    })
-    .option('cols', {
-      type: 'integer'
-    })
-    .option('rows', {
-      type: 'integer'
-    })
-    .option('bbox', {
-      type: 'bbox',
-      describe: 'xmin,ymin,xmax,ymax (default is bbox of data)'
-    })
-    .option('name', nameOpt);
+    .option('target', targetOpt);
 
   parser.command('proj')
     .describe('project your data (using Proj.4)')
@@ -772,6 +914,29 @@ internal.getOptionParser = function() {
     })
     .option('target', targetOpt)
     .validate(validateProjOpts);
+
+  parser.command('rectangle')
+    .describe('create a rectangle from a bbox or target layer extent')
+    .option('bbox', {
+      describe: 'rectangle coordinates (xmin,ymin,xmax,ymax)',
+      type: 'bbox'
+    })
+    .option('offset', offsetOpt)
+    .option('aspect-ratio', aspectRatioOpt)
+    .option('source', {
+      describe: 'name of layer to enclose'
+    })
+    .option('name', nameOpt)
+    .option('target', targetOpt)
+    .option('no-replace', noReplaceOpt);
+
+  parser.command('rectangles')
+    .describe('create a rectangle around each feature in a layer')
+    .option('offset', offsetOpt)
+    .option('aspect-ratio', aspectRatioOpt)
+    .option('name', nameOpt)
+    .option('target', targetOpt)
+    .option('no-replace', noReplaceOpt);
 
   parser.command('rename-fields')
     .describe('rename data fields')
@@ -837,7 +1002,8 @@ internal.getOptionParser = function() {
     })
     */
     .option('variable', {
-      describe: 'expect an expression with interval=, percentage= or resolution=',
+      // describe: 'expect an expression with interval=, percentage= or resolution=',
+      describe: 'JS expr. assigning to one of: interval= percentage= resolution=',
       type: 'flag'
     })
     .option('planar', {
@@ -881,8 +1047,16 @@ internal.getOptionParser = function() {
       describe: 'slice id field (from source layer)'
     })
     .option('name', nameOpt)
-    .option('no-replace', noReplaceOpt)
     .option('no-snap', noSnapOpt)
+    .option('target', targetOpt)
+    .option('no-replace', noReplaceOpt);
+
+  parser.command('snap')
+    // .describe('snap vertices')
+    .option('interval', {
+      DEFAULT: true,
+      type: 'distance'
+    })
     .option('target', targetOpt);
 
   parser.command('sort')
@@ -902,13 +1076,13 @@ internal.getOptionParser = function() {
     .option('target', targetOpt);
 
   parser.command('split')
-    .describe('split features into separate layers using a data field')
+    .describe('split a layer into single-feature or multi-feature layers')
     .option('field', {
       DEFAULT: true,
-      describe: 'name of an attribute field (omit to split all features)'
+      describe: 'attribute field for grouping same-value features'
     })
-    .option('no-replace', noReplaceOpt)
-    .option('target', targetOpt);
+    .option('target', targetOpt)
+    .option('no-replace', noReplaceOpt);
 
   parser.command('split-on-grid')
     .describe('split features into separate layers using a grid')
@@ -936,6 +1110,9 @@ internal.getOptionParser = function() {
     .option('class', {
       describe: 'name of CSS class or classes (space-separated)'
     })
+    // .option('css', {
+    //   describe: 'inline css style'
+    // })
     .option('fill', {
       describe: 'fill color; examples: #eee pink rgba(0, 0, 0, 0.2)'
     })
@@ -1015,6 +1192,22 @@ internal.getOptionParser = function() {
       describe: 'rename the target layer'
     });
 
+  parser.command('union')
+    .describe('create a flat mosaic from two or more polygon layers')
+    // .option('add-fid', {
+    //   describe: 'add FID_A, FID_B, ... fields to output layer',
+    //   type: 'flag'
+    // })
+    .option('fields', {
+      type: 'strings',
+      describe: 'fields to retain (comma-sep.) (default is all fields)',
+    })
+    .option('name', nameOpt)
+    .option('target', {
+      describe: 'specify layers to target (comma-sep. list)'
+    })
+    .option('no-replace', noReplaceOpt);
+
   parser.command('uniq')
     .describe('delete features with the same id as a previous feature')
     .option('expression', {
@@ -1025,10 +1218,7 @@ internal.getOptionParser = function() {
       type: 'number',
       describe: 'max features with the same id (default is 1)'
     })
-    .option('invert', {
-      type: 'flag',
-      describe: 'retain only features that would have been deleted'
-    })
+    .option('invert', invertOpt)
     .option('verbose', {
       describe: 'print each removed feature',
       type: 'flag'
@@ -1038,28 +1228,6 @@ internal.getOptionParser = function() {
 
   // Experimental commands
   parser.section('Experimental commands (may give unexpected results)');
-
-  parser.command('affine')
-    .describe('transform coordinates by shifting, scaling and rotating')
-    .flag('no_args')
-    .option('shift', {
-      type: 'strings',
-      describe: 'x,y offsets in source units (e.g. 5000,-5000)'
-    })
-    .option('scale', {
-      type: 'number',
-      describe: 'scale (default is 1)'
-    })
-    .option('rotate', {
-      type: 'number',
-      describe: 'angle of rotation in degrees (default is 0)'
-    })
-    .option('anchor', {
-      type: 'numbers',
-      describe: 'center of rotation/scaling (default is center of selected shapes)'
-    })
-    .option('where', whereOpt)
-    .option('target', targetOpt);
 
   parser.command('cluster')
     .describe('group polygons into compact clusters')
@@ -1088,46 +1256,27 @@ internal.getOptionParser = function() {
     })
     .option('target', targetOpt);
 
-  parser.command('colorizer')
-    .describe('define a function to convert data values to color classes')
-    .flag('no_arg')
-    .option('colors', {
-      describe: 'comma-separated list of CSS colors',
-      type: 'colors'
-    })
-    .option('breaks', {
-      describe: 'ascending-order list of breaks for sequential color scheme',
-      type: 'numbers'
-    })
-    .option('categories', {
-      describe: 'comma-sep. list of keys for categorical color scheme',
-      type: 'strings'
-    })
-    .option('other', {
-      describe: 'default color for categorical scheme (defaults to no-data color)'
-    })
-    .option('nodata', {
-      describe: 'color to use for invalid or missing data (default is white)'
-    })
-    .option('name', {
-      describe: 'function name to use in -each and -svg-style commands'
-    })
-    .option('precision', {
-      describe: 'rounding precision to apply before classification (e.g. 0.1)',
-      type: 'number'
-    })
-    .example('Define a sequential color scheme and use it to create a new field\n' +
-        '$ mapshaper data.json -colorizer name=getColor nodata=#eee breaks=20,40 \\\n' +
-        '  colors=#e0f3db,#a8ddb5,#43a2ca -each \'fill = getColor(RATING)\' -o output.json');
-
   parser.command('data-fill')
-    // .describe('interpolate missing values by copying from neighbor polygons')
+    .describe('fill in missing values in a polygon layer')
     .option('field', {
-      describe: 'name of field to fill out'
+      describe: 'name of field to fill in'
     })
-    .option('postprocess', {
-      describe: 'remove data islands',
+    .option('postprocess', {alias_to: 'contiguous'})
+    .option('contiguous', {
+      describe: 'remove non-contiguous data islands',
       type: 'flag'
+    })
+    // .option('min-weight-pct', {
+    //   describe: 'retain data islands weighted more than this pct'
+    // })
+    .option('weight-field', {
+      describe: 'use field values to calculate data island weights'
+    });
+
+  parser.command('external')
+    .option('module', {
+      DEFAULT: true,
+      describe: 'name of Node module containing the command'
     });
 
   parser.command('frame')
@@ -1172,37 +1321,15 @@ internal.getOptionParser = function() {
       describe: 'uniqify points with the same location and field value',
       type: 'flag'
     })
-    .option('target', targetOpt);
-
-  parser.command('polygons')
-    .describe('convert polylines to polygons')
-    .option('gap-tolerance', {
-      describe: 'specify gap tolerance in source units',
-      type: 'distance'
+    .option('no-dropouts', {
+      describe: 'try to retain all values from the point layer',
+      type: 'flag'
     })
-    .option('target', targetOpt);
-
-  parser.command('rectangle')
-    .describe('create a rectangle from a bbox or target layer extent')
-    .option('bbox', {
-      describe: 'rectangle coordinates (xmin,ymin,xmax,ymax)',
-      type: 'bbox'
+    .option('postprocess', {alias_to: 'contiguous'})
+    .option('contiguous', {
+      describe: 'remove non-contiguous data islands',
+      type: 'flag'
     })
-    .option('offset', offsetOpt)
-    .option('aspect-ratio', aspectRatioOpt)
-    .option('source', {
-      describe: 'name of layer to enclose'
-    })
-    .option('name', nameOpt)
-    .option('no-replace', noReplaceOpt)
-    .option('target', targetOpt);
-
-  parser.command('rectangles')
-    .describe('create a rectangle around each feature in the target layer')
-    .option('offset', offsetOpt)
-    .option('aspect-ratio', aspectRatioOpt)
-    .option('name', nameOpt)
-    .option('no-replace', noReplaceOpt)
     .option('target', targetOpt);
 
   parser.command('require')
@@ -1265,7 +1392,6 @@ internal.getOptionParser = function() {
     })
     .option('target', targetOpt);
 
-
   parser.section('Informational commands');
 
   parser.command('calc')
@@ -1294,7 +1420,8 @@ internal.getOptionParser = function() {
     });
 
   parser.command('info')
-    .describe('print information about data layers');
+    .describe('print information about data layers')
+    .option('target', targetOpt);
 
   parser.command('inspect')
     .describe('print information about a feature')
@@ -1321,10 +1448,7 @@ internal.getOptionParser = function() {
   parser.command('debug');
 
   /*
-  parser.command('divide')
-    .option('name', nameOpt)
-    .option('no-replace', noReplaceOpt)
-    .option('target', targetOpt);
+
 
   parser.command('fill-holes')
     .option('no-replace', noReplaceOpt)

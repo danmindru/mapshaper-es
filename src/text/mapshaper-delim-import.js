@@ -1,6 +1,5 @@
 /* @requires mapshaper-data-table, mapshaper-data-utils, mapshaper-delim-reader, mapshaper-cli-utils */
 
-
 // Convert a string containing delimited text data into a dataset object
 internal.importDelim = function(str, opts) {
   return internal.importDelim2({content: str}, opts);
@@ -14,13 +13,12 @@ internal.importDelim2 = function(data, opts) {
       content = data.content,
       filter, reader, records, delimiter, table;
   opts = opts || {};
-  filter = internal.getImportFilterFunction(opts);
 
-  // read content of all but very large files into a buffer
-  if (readFromFile && cli.fileSize(data.filename) < 2e9) {
-    content = cli.readFile(data.filename);
-    readFromFile = false;
-  }
+  // // read content of all but very large files into a buffer
+  // if (readFromFile && cli.fileSize(data.filename) < 2e9) {
+  //   content = cli.readFile(data.filename);
+  //   readFromFile = false;
+  // }
 
   if (readFromFile) {
     // try to read data incrementally from file, if content is missing
@@ -44,11 +42,10 @@ internal.importDelim2 = function(data, opts) {
 
   if (reader) {
     delimiter = internal.guessDelimiter(internal.readFirstChars(reader, 2000));
-    records = internal.readDelimRecords(reader, delimiter, opts.encoding, filter);
+    records = internal.readDelimRecords(reader, delimiter, opts);
   } else {
     delimiter = internal.guessDelimiter(content);
-    records = require("d3-dsv").dsvFormat(delimiter).parse(content, filter);
-    delete records.columns; // added by d3-dsv
+    records = internal.readDelimRecordsFromString(content, delimiter, opts);
   }
   if (records.length === 0) {
     message("Unable to read any data records");
@@ -128,7 +125,10 @@ internal.adjustRecordTypes = function(records, opts) {
     if (typeHint == 'number' || singleType == 'number') {
       values = internal.convertDataField(key, records, utils.parseNumber);
     } else if (typeHint == 'string' || singleType == 'string') {
-      values = internal.convertDataField(key, records, utils.parseString);
+      // We should be able to assume that imported CSV fields are strings,
+      //   so parsing + replacement is not required
+      // values = internal.convertDataField(key, records, utils.parseString);
+      values = null;
     } else {
       values = internal.tryNumericField(key, records);
       if (values) detectedNumFields.push(key);
@@ -147,17 +147,14 @@ internal.adjustRecordTypes = function(records, opts) {
 // Copy original data properties and replacements to a new set of records
 // (Better performance in v8 than making in-place replacements)
 internal.updateFieldsInRecords = function(fields, records, replacements) {
-  records.forEach(function(rec, recId) {
-    var rec2 = {}, n, i, f;
-    for (i=0, n=fields.length; i<n; i++) {
-      f = fields[i];
-      if (f in replacements) {
-        rec2[f] = replacements[f][recId];
-      } else {
-        rec2[f] = rec[f];
-      }
-    }
-    records[recId] = rec2;
+  // Use object-literal syntax (faster than alternative)
+  var convertBody = 'return {' + fields.map(function(name) {
+      var key = JSON.stringify(name);
+      return key + ': ' + (replacements[name] ? 'replacements[' + key + '][i]' : 'rec[' + key + ']');
+    }).join(', ') + '}';
+  var convert = new Function('rec', 'replacements', 'i', convertBody);
+  records.forEach(function(rec, i) {
+    records[i] = convert(rec, replacements, i);
   });
 };
 
@@ -204,8 +201,8 @@ internal.validateFieldType = function(hint) {
 
 // Remove comma separators from strings
 // TODO: accept European-style numbers?
-utils.cleanNumericString = function(raw) {
-  return raw.replace(/,/g, '');
+utils.cleanNumericString = function(str) {
+  return (str.indexOf(',') > 0) ? str.replace(/,([0-9]{3})/g, '$1') : str;
 };
 
 // Assume: @raw is string, undefined or null
@@ -221,27 +218,4 @@ utils.parseNumber = function(raw) {
   var str = String(raw).trim();
   var parsed = str ? Number(utils.cleanNumericString(str)) : NaN;
   return isNaN(parsed) ? null : parsed;
-};
-
-// Returns a d3-dsv compatible function for filtering records and fields on import
-// TODO: look into using more code from standard expressions.
-internal.getImportFilterFunction = function(opts) {
-  var recordFilter = opts.csv_filter ? internal.compileExpressionToFunction(opts.csv_filter, {returns: true}) : null;
-  var fieldFilter = opts.csv_fields ? internal.getRecordMapper(internal.mapFieldNames(opts.csv_fields)) : null;
-  var ctx = internal.getBaseContext();
-  if (!recordFilter && !fieldFilter) return null;
-  return function(rec) {
-    var val;
-    try {
-      val = recordFilter ? recordFilter.call(null, rec, ctx) : true;
-    } catch(e) {
-      stop(e.name, "in expression [" + exp + "]:", e.message);
-    }
-    if (val === false) {
-      return null;
-    } else if (val !== true) {
-      stop("Filter expression must return true or false");
-    }
-    return fieldFilter ? fieldFilter(rec) : rec;
-  };
 };

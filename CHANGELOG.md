@@ -1,3 +1,123 @@
+v0.4.161
+* Adjusted the pointer interaction interface.
+* Now, the -filter-fields command sets the field order of exported CSV.
+
+v0.4.160
+* Bug fixes
+
+v0.4.159
+* Changed GUI icon and user interaction for switching interaction modes.
+* Added feature-selection interaction mode to the Web UI, for selecting features with the mouse.
+* Added box-select (using shift-drag) to feature-selection mode.
+* Added 'random' option to the -colorizer command, for assigning colors randomly.
+
+v0.4.158
+* Support bracket notation in -i json-path= option, for targetting datasets nested inside JSON arrays.
+
+v0.4.157
+* Fixes and other improvements to the interactive box tool.
+* Fixes to the web console "history" command.
+* Added -filter bbox= option, to retain features that intersect a bbox.
+* Added -filter invert option, to retain the features that would have been deleted.
+
+v0.4.156
+* Added box tool to the GUI, activated by shift-drag. The box tool supports clipping, feature selection + filtering, bbox coordinate lookup and zoom-to-box.
+
+v0.4.155
+* Added mapshaper-gui -q/--quick-view option, for bypassing the import dialog.
+* Added -join prefix= option, to add a prefix to the names of fields joined from the source dataset.
+* Updated CLI -info command to show only target layer(s) by default. Use -info target=* for information about all layers.
+
+v0.4.154
+* Added -divide command, for dividing a polyline layer by a polygon layer. Also joins data from the polygon layer to the divided polyline layer.
+
+v0.4.153
+* Allow setting empty layer names using -rename-layers "".
+* Fixed bug affecting polygon-to-polygon spatial joins using the "point-method" flag.
+
+v0.4.152
+* Rename json-subtree option json-path.
+
+v0.4.151
+* Added -i json-subtree=<path> option, for importing a nested array of JSON data records.
+* Added -dissolve group-points option, to convert groups of point/multipoint features to multipoint features, instead of converting groups to centroids.
+
+v0.4.150
+* Fixed a bug affecting the calc=[expression] option when performing polygon-to-polygon spatial joins.
+
+v0.4.149
+* Improve OGC Simple Features compliance of cleaned polygons.
+
+v0.4.148
+* Added sliver-control=[0-1] option to -clean -dissolve2 and -filter-slivers commands, for variable sliver control.
+* Made sliver-control=1 the default value for these commands.
+* Tweaked the default area threshold for gap/sliver removal to use a larger threshold for more detailed datasets (detail is estimated using average segments per ring).
+* Changed name of min-gap-area option to gap-fill-area (original name also works).
+* Added tests of -clean command polygon output to verify OGC Simple Features compatibility.
+
+v0.4.147
+* Improved robustness of path intersection (used by many commands, including -clean -dissolve2 -clip -erase -union).
+
+v0.4.146
+* Added support for line and point type features to the -clean command.
+* Added (undocumented) -snap command, for snapping vertices post-import.
+
+v0.4.145
+* Added -grid command for creating grids of square or hexagonal polygons. Assumes target layer is projected. Creates a grid layer that entirely contains the bounding box of the target layer.
+* Added polygon-to-polygon spatial joins to the -join command.
+* Added "interpolate=" option to the -join command, for reassigning attribute values of the listed fields using simple areal interpolation (assumes even distribution of data within polygon areas) (polygon-polygon spatial joins only).
+* Added "point-method" option to the -join command, for performing polygon-polygon spatial joins using an alternate method.
+* Added "-lines segments" option, to explode a polygon or polyline layer into individual segments.
+
+v0.4.144
+* Change -union command syntax to use two or more target layers as input
+* Added -union fields= option for selecting which fields from the input layers to retain.
+
+v0.4.143
+* Fix for web UI bug that caused command line options to be ignored.
+
+v0.4.142
+* Added -union command for creating a mosaic from two polygon layers, preserving data from both layers.
+* Added -mosaic calc= option, which provides options for transferring data from source polygons to mosaic polygons.
+* Allow -merge-layers to combine a shape layer with a layer that has null geometry.
+
+v0.4.141
+* Added "history" command to browser console, for displaying browser session as a command line shell command.
+* Added -mosaic as a documented command (flattens overlapping polygons by converting overlaps to separate features).
+
+v0.4.140
+* Fix error in web UI.
+
+v0.4.139
+* Send output of -version, -help and some other informational commands to stdout, not stderr.
+
+v0.4.138
+* Added runCommandsXL() function to Mapshaper's Node API, for running commands with more memory.
+
+v0.4.137
+* Further improvements to -data-fill and -fuzzy-join. Added 'contiguous' flag to ensure that only the most important one of multiple same-value areas is retained.
+
+v0.4.136
+* Improvements to -data-fill and -fuzzy-join
+
+v0.4.135
+* [shapefile] If a projection has no known WKT definition, generate a fallback .prj file with an embedded Proj.4 string (readable by QGIS and gdal but not ArcGIS).
+
+v0.4.134
+* Fixed "npm run build" on Windows
+
+v0.4.133
+* Performance improvements for CSV importing
+
+v0.4.132
+* Added -i csv-lines=[integer] option, for importing the first n records from a CSV file
+* Added -i csv-skip-lines=[integer] option, for skipping lines at the top of a CSV file
+* Added -i csv-field-names=[list] option, for assigning field names to the columns of a CSV file.
+
+v0.4.131
+* Added optional size parameter to mapshaper-xl (e.g. mapshaper-xl 16gb)
+* Improve performance of -i csv-fields=  option.
+
 v0.4.130
 * Input of GeoJSON and TopoJSON is more fault-tolerant.
 

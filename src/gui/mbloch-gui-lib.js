@@ -409,7 +409,6 @@ utils.extend(El.prototype, {
     return this;
   },
 
-
   remove: function(sel) {
     if (this.el.parentNode) this.el.parentNode.removeChild(this.el);
     return this;
@@ -962,6 +961,8 @@ function MouseArea(element, pos) {
     _prevEvt = {
       originalEvent: e,
       shiftKey: e.shiftKey,
+      metaKey: e.metaKey,
+      ctrlKey: e.ctrlKey,
       time: +new Date(),
       pageX: pageX,
       pageY: pageY,

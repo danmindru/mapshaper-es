@@ -3,7 +3,7 @@ var api = require('../'),
   fs = require('fs'),
   format = api.utils.format;
 
-var states_shp = "test/test_data/two_states.shp";
+var states_shp = "test/data/two_states.shp";
 
 
 function runFile(cmd, done) {
@@ -31,7 +31,7 @@ describe('mapshaper-commands.js', function () {
 
   describe('Issue #264 applyCommands()', function() {
     it ('should throw error if input is a file path, not file content', function(done) {
-      mapshaper.applyCommands('-i input.shp -o out.json', {'input.shp': 'test/test_data/two_states.shp'}, function(err, output) {
+      mapshaper.applyCommands('-i input.shp -o out.json', {'input.shp': 'test/data/two_states.shp'}, function(err, output) {
         assert(!!err);
         done();
       });
@@ -42,7 +42,7 @@ describe('mapshaper-commands.js', function () {
     it('files are processed, no error thrown', function (done) {
       // this duplicates the error (Windows shell doesn't expand wildcards,
       // but bash does)
-      var cmd = '-i test/test_data/issues/166/*.dbf -o format=csv';
+      var cmd = '-i test/data/issues/166/*.dbf -o format=csv';
       api.applyCommands(cmd, {}, function(err, output) {
         assert(!err);
         assert('a_utm.csv' in output);
@@ -82,7 +82,7 @@ describe('mapshaper-commands.js', function () {
 
   describe('context tests', function () {
     it('context vars are reset after commands run', function (done) {
-      var cmd = '-i test/test_data/three_points.geojson -verbose';
+      var cmd = '-i test/data/three_points.geojson -verbose';
       api.runCommands(cmd, function(err) {
         setTimeout(function() {
           assert.strictEqual(api.internal.getStateVar('VERBOSE'), false);
@@ -90,7 +90,7 @@ describe('mapshaper-commands.js', function () {
           done();
         },1);
         assert.strictEqual(api.internal.getStateVar('VERBOSE'), true);
-        assert.deepEqual(api.internal.getStateVar('input_files'), ['test/test_data/three_points.geojson']);
+        assert.deepEqual(api.internal.getStateVar('input_files'), ['test/data/three_points.geojson']);
       });
     })
   })
@@ -208,7 +208,7 @@ describe('mapshaper-commands.js', function () {
     });
 
 
-    it('missing file', function(done) {
+    it('missing file causes UserError', function(done) {
       api.applyCommands('-i data.csv', {}, function(err, output) {
         assert(err.name, 'UserError');
         done();
@@ -346,8 +346,8 @@ describe('mapshaper-commands.js', function () {
 
     it('accepts Buffer objects as input (Issue #159)', function(done) {
       var fs = require('fs');
-      var shp = fs.readFileSync('test/test_data/three_points.shp');
-      var dbf = fs.readFileSync('test/test_data/three_points.dbf');
+      var shp = fs.readFileSync('test/data/three_points.shp');
+      var dbf = fs.readFileSync('test/data/three_points.dbf');
       var input = {
         'points.shp': shp,
         'points.dbf': dbf
@@ -423,7 +423,42 @@ describe('mapshaper-commands.js', function () {
     })
   })
 
+  describe('runCommandsXL()', function () {
+    it('Works with {xl: "4gb"} option + callback', function(done) {
+      mapshaper.runCommandsXL('test/data/three_points.geojson -filter true', {xl: '4gb'}, function(err) {
+        assert(!err);
+        done();
+      });
+    });
+
+    it('Works with no argument', function() {
+      var promise = mapshaper.runCommandsXL('-v');
+      assert(promise.then);
+    });
+
+    it('Works with {xl: 3gb} option + Promise', function() {
+      var promise = mapshaper.runCommandsXL('-v', {xl: "3gb"});
+      assert(promise.then);
+    });
+
+    it('Error on invalid xl option (callback)', function(done) {
+      mapshaper.runCommandsXL('-v', {xl: "1000gb"}, function(err) {
+        assert(!!err);
+        done();
+      });
+    });
+
+    it('Error on invalid xl option (promise)', function(done) {
+      mapshaper.runCommandsXL('-v', {xl: "1000gb"}).then(function() {
+        done(new Error('expected an error'));
+      }).catch(function(e) {
+        done();
+      });
+    });
+  });
+
   describe('runCommands()', function () {
+
     it('Returns a Promise if no callback is passed', function() {
       var promise = mapshaper.runCommands('-v');
       assert(promise.then);
@@ -459,8 +494,6 @@ describe('mapshaper-commands.js', function () {
       });
     });
 
-
-
     it('Error: -i missing a file', function(done) {
       mapshaper.runCommands("-i oops.shp", function(err) {
         assert.equal(err.name, 'UserError');
@@ -487,8 +520,8 @@ describe('mapshaper-commands.js', function () {
   describe('testCommands()', function() {
 
     it('multiple input files are processed in sequence', function(done) {
-      mapshaper.internal.testCommands('-i test/test_data/three_points.geojson test/test_data/one_point.geojson', function(err, dataset) {
-          assert.deepEqual(dataset.info.input_files, ['test/test_data/one_point.geojson' ]);
+      mapshaper.internal.testCommands('-i test/data/three_points.geojson test/data/one_point.geojson', function(err, dataset) {
+          assert.deepEqual(dataset.info.input_files, ['test/data/one_point.geojson' ]);
           assert.equal(dataset.layers[0].name, 'one_point');
           done();
         });

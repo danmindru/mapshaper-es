@@ -1,7 +1,8 @@
-/* @requires mapshaper-common, mapshaper-chunker */
+/* @requires mapshaper-common, mapshaper-option-parsing-utils */
 
 function CommandParser() {
   var commandRxp = /^--?([a-z][\w-]*)$/i,
+      invalidCommandRxp = /^--?[a-z][\w-]*[=]/i, // e.g. -target=A // could be more general
       assignmentRxp = /^([a-z0-9_+-]+)=(?!\=)(.*)$/i, // exclude ==
       _usage = "",
       _examples = [],
@@ -62,7 +63,10 @@ function CommandParser() {
       }
       cmdDef = findCommandDefn(cmdName, commandDefs);
       if (!cmdDef) {
-        stop("Unknown command:", cmdName);
+        // In order to support adding commands at runtime, unknown commands
+        // are parsed without options (tokens get stored for later parsing)
+        // stop("Unknown command:", cmdName);
+        cmdDef = {name: cmdName, options: [], multi_arg: true};
       }
       cmd = {
         name: cmdDef.name,
@@ -96,6 +100,9 @@ function CommandParser() {
     return commands;
 
     function tokenLooksLikeCommand(s) {
+      if (invalidCommandRxp.test(s)) {
+        stop('Invalid command syntax:', s);
+      }
       return commandRxp.test(s);
     }
 
@@ -118,13 +125,16 @@ function CommandParser() {
           argv.unshift(parts[1]);
         }
       } else {
-        // looks like a simple spaced-delimited argument
+        // try to parse as a flag option,
+        // or as a space-delimited assignment option (for backwards compatibility)
         optDef = findOptionDefn(token, cmdDef);
       }
 
       if (!optDef) {
         // token is not a defined option; add it to _ array for later processing
-        cmd._.push(token);
+        // Stripping surrounding quotes here, although this may not be necessary since
+        // (some, most, all?) shells seem to remove quotes.
+        cmd._.push(utils.trimQuotes(token));
         return;
       }
 
@@ -227,7 +237,7 @@ function CommandParser() {
 
     function formatLines(lines) {
       var colWidth = calcColWidth(lines);
-      var gutter = ' ';
+      var gutter = '  ';
       var helpStr = lines.map(function(line) {
         if (Array.isArray(line)) {
           line = '  ' + utils.rpad(line[0], colWidth, ' ') + gutter + line[1];
@@ -272,9 +282,9 @@ function CommandParser() {
       } else if (opt.label) {
         lines.push([opt.label, description]);
       } else if (opt.name == cmd.default) {
-        label = '<' + opt.name + '>';
+        label = opt.name + '=';
+        lines.push(['<' + opt.name + '>', 'shortcut for ' + label]);
         lines.push([label, description]);
-        lines.push([opt.name + '=', 'equivalent to ' + label]);
       } else {
         label = opt.name;
         if (opt.alias) label += ', ' + opt.alias;
@@ -332,7 +342,7 @@ function CommandParser() {
   };
 
   this.printHelp = function(command) {
-    message(this.getHelpMessage(command));
+    print(this.getHelpMessage(command));
   };
 
   function getCommands() {
@@ -354,7 +364,7 @@ function CommandParser() {
 
   function findOptionDefn(name, cmdDef) {
     return utils.find(cmdDef.options, function(o) {
-      return o.name === name || o.alias === name;
+      return o.name === name || o.alias === name || o.old_alias === name;
     });
   }
 }
@@ -406,7 +416,7 @@ function CommandOptions(name) {
   };
 
   this.option = function(name, opts) {
-    opts = opts || {}; // accept just a name -- some options don't need properties
+    opts = utils.extend({}, opts); // accept just a name -- some options don't need properties
     if (!utils.isString(name) || !name) error("Missing option name");
     if (!utils.isObject(opts)) error("Invalid option definition:", opts);
     // default option -- assign unnamed argument to this option
@@ -420,35 +430,3 @@ function CommandOptions(name) {
     return _command;
   };
 }
-
-// Split comma-delimited list, trim quotes from entire list and
-// individual members
-internal.parseStringList = function(token) {
-  var delim = ',';
-  var list = internal.splitTokens(token, delim);
-  if (list.length == 1) {
-    list = internal.splitTokens(list[0], delim);
-  }
-  return list;
-};
-
-// Accept spaces and/or commas as delimiters
-internal.parseColorList = function(token) {
-  var delim = ', ';
-  var token2 = token.replace(/, *(?=[^(]*\))/g, '~~~'); // kludge: protect rgba() functions from being split apart
-  var list = internal.splitTokens(token2, delim);
-  if (list.length == 1) {
-    list = internal.splitTokens(list[0], delim);
-  }
-  list = list.map(function(str) {
-    return str.replace(/~~~/g, ',');
-  });
-  return list;
-};
-
-internal.cleanArgv = function(argv) {
-  argv = argv.map(function(s) {return s.trim();}); // trim whitespace
-  argv = argv.filter(function(s) {return s !== '';}); // remove empty tokens
-  argv = argv.map(utils.trimQuotes); // remove one level of single or dbl quotes
-  return argv;
-};

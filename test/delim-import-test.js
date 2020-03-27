@@ -15,6 +15,58 @@ function fixPath(p) {
 describe('mapshaper-delim-import.js', function() {
 
   describe('csv decoding with -i', function () {
+    it('-i csv-lines= csv-field-names= csv-fields= options', function(done) {
+      var cmd = '-i test/data/text/states.csv csv-fields=A,D ' +
+        'csv-field-names=A,B,C,D,E,F csv-skip-lines=1 csv-lines=2 -o format=json';
+      api.applyCommands(cmd, {}, function(err, out) {
+        var json = JSON.parse(out['states.json']);
+        assert.deepEqual(json, [{ A: 'Alabama', D: 'AL' }, { A: 'Alaska', D: 'AK' }]);
+        done();
+      })
+    });
+
+    it('-i field-types= works with :str type hint', function (done) {
+      var input = "fips\n00001";
+      api.applyCommands('-i field-types=fips:str', input, function(err, output) {
+        if (err) throw err;
+        assert.equal(err, null);
+        assert.equal(output, "fips\n00001");
+        done();
+      });
+    })
+
+    it('handle missing values in numeric fields', function(done) {
+      var target = `Residence_Addresses_Latitude,Residence_Addresses_Longitude,Residence_Addresses_LatLongAccuracy,County,Voters_FIPS,Precinct
+38.25722,-119.226515,GeoMatch5Digit,MONO,051,BRIDGEPORT
+,,,MONO,051,BRIDGEPORT`;
+      api.applyCommands('-i test/data/text/empty_fields.csv string-fields=Voters_FIPS -info -o data.csv',  function(err, out) {
+        var output = out['data.csv'].toString();
+        assert.equal(output, target);
+        done();
+      });
+    })
+
+    it('handle missing values in numeric fields 2', function(done) {
+      var target = `County,Voters_FIPS,Precinct,Residence_Addresses_Latitude,Residence_Addresses_Longitude,Residence_Addresses_LatLongAccuracy
+LOS ANGELES,037,ALTADENA-0046,34.1911,-118.158,GeoMatchRooftop
+LOS ANGELES,037,ALTADENA-0048,,,`;
+      api.applyCommands('-i test/data/text/empty_fields2.csv string-fields=Voters_FIPS  -o data.csv',  function(err, out) {
+        var output = out['data.csv'].toString();
+        assert.equal(output, target);
+        done();
+      });
+    })
+
+    it('filter fields with csv-fields= option', function(done) {
+      var target = `County,Residence_Addresses_Latitude,Residence_Addresses_Longitude
+LOS ANGELES,34.1911,-118.158
+LOS ANGELES,,`;
+      api.applyCommands('-i test/data/text/empty_fields2.csv csv-fields=County,Residence_Addresses_Latitude,Residence_Addresses_Longitude  -o data.csv',  function(err, out) {
+          var output = out['data.csv'].toString();
+          assert.equal(output, target);
+          done();
+        });
+      })
 
     it('handle empty files', function(done) {
       api.applyCommands('-i empty.csv -o', {'empty.csv': ''}, function(err, out) {
@@ -141,7 +193,7 @@ describe('mapshaper-delim-import.js', function() {
 
   describe('infer export delimiter from filename, if possible', function () {
     it('.tsv implies tab-delimited text', function (done) {
-      var cmd = '-i test/test_data/text/two_states.csv -o output.tsv';
+      var cmd = '-i test/data/text/two_states.csv -o output.tsv';
       api.applyCommands(cmd, {}, function(err, output) {
         assert.ok(output['output.tsv'].indexOf('\t') > -1); // got tabs
         done();
@@ -149,7 +201,7 @@ describe('mapshaper-delim-import.js', function() {
     })
 
     it('use input delimiter if export filename is ambiguous', function (done) {
-      var cmd = '-i test/test_data/text/two_states.csv -o output.txt';
+      var cmd = '-i test/data/text/two_states.csv -o output.txt';
       api.applyCommands(cmd, {}, function(err, output) {
         var o = output[0];
         assert.ok(output['output.txt'].indexOf(',') > -1); // got commas
@@ -158,7 +210,7 @@ describe('mapshaper-delim-import.js', function() {
     })
 
     it('use comma as default delimiter if other methods fail', function (done) {
-      var cmd = '-i test/test_data/two_states.shp -o output.txt';
+      var cmd = '-i test/data/two_states.shp -o output.txt';
       api.applyCommands(cmd, {}, function(err, output) {
         var o = output[0];
         assert.ok(output['output.txt'].indexOf(',') > -1); // got commas
@@ -167,7 +219,7 @@ describe('mapshaper-delim-import.js', function() {
     })
 
     it('.csv in output filename implies comma-delimited text', function (done) {
-      var cmd = '-i test/test_data/text/two_states.tsv -o output.csv';
+      var cmd = '-i test/data/text/two_states.tsv -o output.csv';
       api.applyCommands(cmd, {}, function(err, output) {
         var o = output[0];
         assert.ok(output['output.csv'].indexOf(',') > -1); // got commas
@@ -176,9 +228,19 @@ describe('mapshaper-delim-import.js', function() {
     })
   })
 
+  false && describe('Auto-detecting UTF-8 and UTF-16 with BOM', function () {
+    it('utf16be sample', function (done) {
+      var cmd = '-i test/data/text/utf16_le_bom.csv -o out.csv'; //
+      api.applyCommands(cmd, {}, function(err, output) {
+        console.log(output['out.csv']);
+        done();
+      });
+    })
+  })
+
   describe('Importing dsv with encoding= option', function() {
     it ('utf16 (be)', function(done) {
-      var cmd = '-i test/test_data/text/utf16.txt encoding=utf16';
+      var cmd = '-i test/data/text/utf16.txt encoding=utf16';
       api.internal.testCommands(cmd, function(err, data) {
         assert.deepEqual(data.layers[0].data.getRecords(), [{NAME: '国语國語'}])
         done();
@@ -186,7 +248,7 @@ describe('mapshaper-delim-import.js', function() {
     })
 
     it ('utf16 (be) with BOM', function(done) {
-      var cmd = '-i test/test_data/text/utf16bom.txt encoding=utf16';
+      var cmd = '-i test/data/text/utf16bom.txt encoding=utf16';
       api.internal.testCommands(cmd, function(err, data) {
         var rec = data.layers[0].data.getRecords()[0];
         assert.deepEqual(rec, {NAME: '国语國語'})
@@ -195,7 +257,7 @@ describe('mapshaper-delim-import.js', function() {
     })
 
     it ('utf16be with BOM', function(done) {
-      var cmd = '-i test/test_data/text/utf16bom.txt encoding=utf-16be';
+      var cmd = '-i test/data/text/utf16bom.txt encoding=utf-16be';
       api.internal.testCommands(cmd, function(err, data) {
         var rec = data.layers[0].data.getRecords()[0];
         assert.deepEqual(rec, {NAME: '国语國語'})
@@ -204,7 +266,7 @@ describe('mapshaper-delim-import.js', function() {
     })
 
     it ('utf16le with BOM', function(done) {
-      var cmd = '-i test/test_data/text/utf16le_bom.txt encoding=utf16le';
+      var cmd = '-i test/data/text/utf16le_bom.txt encoding=utf16le';
       api.internal.testCommands(cmd, function(err, data) {
         var rec = data.layers[0].data.getRecords()[0];
         assert.deepEqual(rec, {NAME: '国语國語'})
@@ -213,7 +275,7 @@ describe('mapshaper-delim-import.js', function() {
     })
 
     it ('utf8 with BOM', function(done) {
-      var cmd = '-i test/test_data/text/utf8bom.txt';
+      var cmd = '-i test/data/text/utf8bom.txt';
       api.internal.testCommands(cmd, function(err, data) {
         var rec = data.layers[0].data.getRecords()[0];
         assert.deepEqual(rec, {NAME: '国语國語'})
@@ -223,17 +285,6 @@ describe('mapshaper-delim-import.js', function() {
 
   })
 
-  describe('Importing dsv with -i command', function () {
-    it('-i field-types= works with :str type hint', function (done) {
-      var input = "fips\n00001";
-      api.applyCommands('-i field-types=fips:str', input, function(err, output) {
-        if (err) throw err;
-        assert.equal(err, null);
-        assert.equal(output, "fips\n00001");
-        done();
-      });
-    })
-  })
 
   describe('parseNumber()', function() {
     it('undefined -> null', function() {
@@ -246,6 +297,18 @@ describe('mapshaper-delim-import.js', function() {
 
     it ('"1e3" -> 1000', function() {
       assert.equal(utils.parseNumber('1e3'), 1000);
+    })
+
+    it (',, -> null', function() {
+      assert.strictEqual(utils.parseNumber(',,'), null);
+    })
+
+    it (', -> null', function() {
+      assert.strictEqual(utils.parseNumber(','), null);
+    })
+
+    it ('. -> null', function() {
+      assert.strictEqual(utils.parseNumber('.'), null);
     })
 
     it('parses decimal numbers', function() {
@@ -385,7 +448,7 @@ describe('mapshaper-delim-import.js', function() {
   describe('importDelim2()', function () {
     it('import from a file', function () {
       var input = {
-        filename: 'test/test_data/text/states.csv'
+        filename: 'test/data/text/states.csv'
       };
       var output = api.internal.importDelim2(input);
       var records = output.layers[0].data.getRecords();
@@ -402,7 +465,7 @@ describe('mapshaper-delim-import.js', function() {
 
     it('import file with filter', function () {
       var input = {
-        filename: 'test/test_data/text/states.csv'
+        filename: 'test/data/text/states.csv'
       };
       var opts = {
         csv_filter: 'STATE_NAME == "Colorado"'
@@ -421,7 +484,7 @@ describe('mapshaper-delim-import.js', function() {
     })
 
     it('import string with filter', function () {
-      var str = require('fs').readFileSync('test/test_data/text/states.csv', 'utf8');
+      var str = require('fs').readFileSync('test/data/text/states.csv', 'utf8');
       var input = {
         content: str
       };
@@ -443,6 +506,13 @@ describe('mapshaper-delim-import.js', function() {
   })
 
   describe('importDelim()', function () {
+    it('apply row filter before counting lines', function() {
+      var str = 'foo\na\nb\nc\nd\ne\nf';
+      var dataset = api.internal.importDelim(str, {csv_lines: 2, csv_filter:'foo != "a" && foo != "c"'});
+      var arr = dataset.layers[0].data.getRecords();
+      assert.deepEqual(arr, [{foo: 'b'}, {foo: 'd'}])
+    })
+
     it('should detect tab delimiter', function () {
       var str = 'a\tb\n1\t"boo ya"'
       var dataset = api.internal.importDelim(str);
@@ -455,6 +525,18 @@ describe('mapshaper-delim-import.js', function() {
       var data = api.internal.importDelim(str);
       stringifyEqual(data.layers[0].data.getRecords(), [{a: 1, b: 2}]);
     })
+
+    it('missing string field is imported as empty string', function() {
+      var str = 'a,b\nc,d\ne';
+      var data = api.internal.importDelim(str);
+      assert.deepStrictEqual(data.layers[0].data.getRecords(), [{a: 'c', b: 'd'}, {a: 'e', b: ''}])
+    });
+
+    it('missing number is imported as null', function() {
+      var str = 'a,b\n,1\n2,3';
+      var data = api.internal.importDelim(str);
+      assert.deepStrictEqual(data.layers[0].data.getRecords(), [{a: null, b: 1}, {a: 2, b: 3}])
+    });
 
     it('parse csv with quoted field including comma', function () {
       var str = 'a,b\n1,"foo, bar"'

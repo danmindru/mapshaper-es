@@ -6,6 +6,7 @@ mapshaper-data-aggregation
 mapshaper-ring-nesting
 mapshaper-polygon-mosaic
 mapshaper-mosaic-index
+mapshaper-slivers
 */
 
 
@@ -17,17 +18,7 @@ internal.dissolvePolygonLayer2 = function(lyr, dataset, opts) {
   }
   var getGroupId = internal.getCategoryClassifier(opts.fields, lyr.data);
   var groups = internal.groupPolygons2(lyr, getGroupId);
-  var arcFilter = internal.getArcPresenceTest(lyr.shapes, dataset.arcs);
-  var nodes = new NodeCollection(dataset.arcs, arcFilter);
-  var mosaicIndex = new MosaicIndex(lyr, nodes, {flat: true});
-  if (opts.mosaic) {
-    return internal.composeMosaicLayer(lyr, mosaicIndex.mosaic);
-  }
-  if (opts.arcs) {
-    return internal.getArcLayer(nodes.arcs, lyr.name);
-  }
-  mosaicIndex.removeGaps(internal.getGapFillTest(dataset, opts));
-  var shapes2 = internal.dissolvePolygonGroups2(groups, mosaicIndex, opts);
+  var shapes2 = internal.dissolvePolygonGroups2(groups, lyr, dataset, opts);
   return internal.composeDissolveLayer(lyr, shapes2, getGroupId, opts);
 };
 
@@ -67,8 +58,21 @@ internal.groupPolygons2 = function(lyr, getGroupId) {
   }, []);
 };
 
-internal.dissolvePolygonGroups2 = function(groups, mosaicIndex, opts) {
-  var dissolve = internal.getRingIntersector(mosaicIndex.nodes, 'dissolve');
+internal.getGapRemovalMessage = function(removed, retained, areaLabel) {
+  var msg;
+  if (removed > 0 === false) return '';
+  return utils.format('Closed %,d / %,d gap%s using %s',
+      removed, removed + retained, utils.pluralSuffix(removed), areaLabel);
+};
+
+internal.dissolvePolygonGroups2 = function(groups, lyr, dataset, opts) {
+  var arcFilter = internal.getArcPresenceTest(lyr.shapes, dataset.arcs);
+  var nodes = new NodeCollection(dataset.arcs, arcFilter);
+  var mosaicIndex = new MosaicIndex(lyr, nodes, {flat: true});
+  var sliverOpts = utils.extend({sliver_control: 1}, opts);
+  var filterData = internal.getSliverFilter(lyr, dataset, sliverOpts);
+  var cleanupData = mosaicIndex.removeGaps(filterData.filter);
+  var pathfind = internal.getRingIntersector(mosaicIndex.nodes);
   var dissolvedShapes = groups.map(function(shapeIds) {
     var tiles = mosaicIndex.getTilesByShapeIds(shapeIds);
     if (opts.tiles) {
@@ -76,12 +80,17 @@ internal.dissolvePolygonGroups2 = function(groups, mosaicIndex, opts) {
         return memo.concat(tile);
       }, []);
     }
-    return internal.dissolveTileGroup2(tiles, dissolve);
+    return internal.dissolveTileGroup2(tiles, pathfind);
   });
+  // convert self-intersecting rings to outer/inner rings, for OGC
+  // Simple Features compliance
+  dissolvedShapes = internal.fixTangentHoles(dissolvedShapes, pathfind);
+  var gapMessage = internal.getGapRemovalMessage(cleanupData.removed, cleanupData.remaining, filterData.label);
+  if (gapMessage) message(gapMessage);
   return dissolvedShapes;
 };
 
-internal.dissolveTileGroup2 = function(tiles, dissolve) {
+internal.dissolveTileGroup2 = function(tiles, pathfind) {
   var rings = [],
       holes = [],
       dissolved, tile;
@@ -92,10 +101,28 @@ internal.dissolveTileGroup2 = function(tiles, dissolve) {
       holes = holes.concat(tile.slice(1));
     }
   }
-  dissolved = dissolve(rings.concat(holes));
+  dissolved = pathfind(rings.concat(holes), 'dissolve');
   if (dissolved.length > 1) {
     // Commenting-out nesting order repair -- new method should prevent nesting errors
     // dissolved = internal.fixNestingErrors(dissolved, arcs);
   }
   return dissolved.length > 0 ? dissolved : null;
+};
+
+internal.fixTangentHoles = function(shapes, pathfind) {
+  var onRing = function(memo, ring) {
+    internal.reversePath(ring);
+    var fixed = pathfind([ring], 'flatten');
+    if (fixed.length > 1) {
+      fixed.forEach(internal.reversePath);
+      memo = memo.concat(fixed);
+    } else {
+      memo.push(internal.reversePath(ring));
+    }
+    return memo;
+  };
+  return shapes.map(function(rings) {
+    if (!rings) return null;
+    return rings.reduce(onRing, []);
+  });
 };

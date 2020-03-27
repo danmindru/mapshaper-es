@@ -7,6 +7,29 @@ internal.readFirstChars = function(reader, n) {
   return internal.bufferToString(reader.readSync(0, Math.min(n || 1000, reader.size())));
 };
 
+// Wraps a BufferReader or FileReader with an API that keeps track of position in the file
+function Reader2(reader) {
+  var offs = 0; // read-head position in bytes
+
+  this.position = function() {return offs;};
+
+  this.remaining = function() {
+    return Math.max(reader.size() - offs, 0);
+  };
+
+  this.advance = function(i) {
+    offs += i;
+  };
+
+  this.readSync = function() {
+    return reader.readSync(offs);
+  };
+
+  this.expandBuffer = function() {
+    reader.expandBuffer();
+  };
+}
+
 // Same interface as FileReader, for reading from a Buffer or ArrayBuffer instead of a file.
 function BufferReader(src) {
   var bufSize = src.byteLength || src.length,
@@ -44,8 +67,8 @@ function BufferReader(src) {
 function FileReader(path, opts) {
   var fs = require('fs'),
       fileLen = fs.statSync(path).size,
-      DEFAULT_CACHE_LEN = opts && opts.cacheSize || 0x800000, // 8MB
-      DEFAULT_BUFFER_LEN = opts && opts.bufferSize || 0x4000, // 32K
+      DEFAULT_CACHE_LEN = opts && opts.cacheSize || 0x1000000, // 16MB
+      DEFAULT_BUFFER_LEN = opts && opts.bufferSize || 0x40000, // 256K
       fd, cacheOffs, cache, binArr;
 
   internal.getStateVar('input_files').push(path); // bit of a kludge

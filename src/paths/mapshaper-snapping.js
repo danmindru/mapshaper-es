@@ -4,11 +4,16 @@ mapshaper-geom,
 mapshaper-arcs
 */
 
-internal.getHighPrecisionSnapInterval = function(arcs) {
-  var bb = arcs.getBounds();
-  if (!bb.hasBounds()) return 0;
-  var maxCoord = Math.max(Math.abs(bb.xmin), Math.abs(bb.ymin),
-      Math.abs(bb.xmax), Math.abs(bb.ymax));
+// Returns an interval for snapping together coordinates that be co-incident bug
+// have diverged because of floating point rounding errors. Intended to be small
+// enought not not to snap points that should be distinct.
+// This is not a robust method... e.g. some formulas for some inputs may produce
+// errors that are larger than this interval.
+// @coords: Array of relevant coordinates (e.g. bbox coordinates of vertex coordinates
+//   of two intersecting segments).
+//
+internal.getHighPrecisionSnapInterval = function(coords) {
+  var maxCoord = Math.max.apply(null, coords.map(Math.abs));
   return maxCoord * 1e-14;
 };
 
@@ -30,14 +35,17 @@ internal.snapCoords = function(arcs, threshold) {
 //
 internal.snapCoordsByInterval = function(arcs, snapDist) {
   var snapCount = 0,
-      data = arcs.getVertexData();
+      data = arcs.getVertexData(),
+      ids;
 
-  // Get sorted coordinate ids
-  // Consider: speed up sorting -- try bucket sort as first pass.
-  //
-  var ids = utils.sortCoordinateIds(data.xx);
-  for (var i=0, n=ids.length; i<n; i++) {
-    snapCount += snapPoint(i, snapDist, ids, data.xx, data.yy);
+  if (snapDist > 0) {
+    // Get sorted coordinate ids
+    // Consider: speed up sorting -- try bucket sort as first pass.
+    //
+    ids = utils.sortCoordinateIds(data.xx);
+    for (var i=0, n=ids.length; i<n; i++) {
+      snapCount += snapPoint(i, snapDist, ids, data.xx, data.yy);
+    }
   }
   return snapCount;
 

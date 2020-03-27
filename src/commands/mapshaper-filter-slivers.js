@@ -1,4 +1,4 @@
-/* @require mapshaper-filter-islands, mapshaper-segment-geom */
+/* @require mapshaper-filter-islands, mapshaper-segment-geom, mapshaper-slivers */
 
 // Remove small-area polygon rings (very simple implementation of sliver removal)
 // TODO: more sophisticated sliver detection (e.g. could consider ratio of area to perimeter)
@@ -12,9 +12,10 @@ api.filterSlivers = function(lyr, dataset, opts) {
   return internal.filterSlivers(lyr, dataset, opts);
 };
 
-internal.filterSlivers = function(lyr, dataset, opts) {
-  var ringTest = opts && opts.min_area ? internal.getMinAreaTest(opts.min_area, dataset, opts) :
-    internal.getSliverTest(dataset.arcs);
+internal.filterSlivers = function(lyr, dataset, optsArg) {
+  var opts = utils.extend({sliver_control: 1}, optsArg);
+  var filterData = internal.getSliverFilter(lyr, dataset, opts);
+  var ringTest = filterData.filter;
   var removed = 0;
   var pathFilter = function(path, i, paths) {
     if (ringTest(path)) {
@@ -23,15 +24,16 @@ internal.filterSlivers = function(lyr, dataset, opts) {
     }
   };
 
-
   internal.editShapes(lyr.shapes, pathFilter);
-  message(utils.format("Removed %'d sliver%s", removed, utils.pluralSuffix(removed)));
+  message(utils.format("Removed %'d sliver%s using %s", removed, utils.pluralSuffix(removed), filterData.label));
   return removed;
 };
 
 internal.filterClipSlivers = function(lyr, clipLyr, arcs) {
+  var threshold = internal.getDefaultSliverThreshold(lyr, arcs);
+  // message('Using variable sliver threshold (based on ' + (threshold / 1e6) + ' sqkm)');
+  var ringTest = internal.getSliverTest(arcs, threshold, 1);
   var flags = new Uint8Array(arcs.size());
-  var ringTest = internal.getSliverTest(arcs);
   var removed = 0;
   var pathFilter = function(path) {
     var prevArcs = 0,
@@ -56,25 +58,3 @@ internal.filterClipSlivers = function(lyr, clipLyr, arcs) {
   return removed;
 };
 
-
-// Calculate an area threshold based on the average segment length,
-// but disregarding very long segments (i.e. bounding boxes)
-// TODO: need something more reliable
-// consider: calculating the distribution of segment lengths in one pass
-//
-internal.calcMaxSliverArea = function(arcs) {
-  var k = 2,
-      dxMax = arcs.getBounds().width() / k,
-      dyMax = arcs.getBounds().height() / k,
-      count = 0,
-      mean = 0;
-  arcs.forEachSegment(function(i, j, xx, yy) {
-    var dx = Math.abs(xx[i] - xx[j]),
-        dy = Math.abs(yy[i] - yy[j]);
-    if (dx < dxMax && dy < dyMax) {
-      // TODO: write utility function for calculating mean this way
-      mean += (Math.sqrt(dx * dx + dy * dy) - mean) / ++count;
-    }
-  });
-  return mean * mean;
-};
