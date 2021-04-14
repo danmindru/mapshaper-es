@@ -1,3 +1,9 @@
+<h1 align="center">Deprecated</h1>
+<p align="center">Since creating this fork, the original repository @ <a href="https://github.com/mbloch/mapshaper">mbloch/mapshaper</a> has changed direction, implementing es modules as of <a href="https://github.com/mbloch/mapshaper/compare/v0.4.163...v0.5.0">v0.5.0</a>. <br/> This repository was created when the maintainers of the original project were not considering a switch to es modules, and therefore is <strong>now obsolete</strong>. <br/>  </p>
+
+> ⛔✋ please use the [original mapshaper](https://github.com/mbloch/mapshaper) <br/>
+> `npm install mapshaper`
+
 [![npm](https://img.shields.io/npm/v/mapshaper-es.svg)](https://www.npmjs.com/package/mapshaper-es)
 [![license](https://img.shields.io/github/license/danmindru/mapshaper-es.svg)](/LICENSE)
 
